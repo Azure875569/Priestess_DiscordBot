@@ -308,11 +308,18 @@ async def operator_skills(interaction: discord.Interaction, 幹員名稱: str):
             color=color,
             url=url,
         )
+        is_passive = skill.get("type1") in ("被動", "被动")
+
+        def _skill_val(desc: str, sp: str) -> str:
+            if sp and not is_passive:
+                return f"*{sp}*\n{desc}"
+            return desc
+
         if skill.get("lv7"):
-            em.add_field(name="Lv.7", value=skill["lv7"], inline=False)
+            em.add_field(name="Lv.7", value=_skill_val(skill["lv7"], skill.get("lv7_sp", "")), inline=False)
         for rank, key in [("專精 1", "m1"), ("專精 2", "m2"), ("專精 3", "m3")]:
             if skill.get(key):
-                em.add_field(name=rank, value=skill[key], inline=False)
+                em.add_field(name=rank, value=_skill_val(skill[key], skill.get(f"{key}_sp", "")), inline=False)
         em.set_footer(text="資料來源：PRTS Wiki")
         pages.append((f"技能 {i}", em))
 

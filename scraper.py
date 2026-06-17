@@ -322,6 +322,19 @@ def get_skill_data(name: str) -> dict | None:
     )
 
     # ── 技能 ──────────────────────────────────────────────────
+    def _sp(block: str, prefix: str) -> str:
+        init = _field(block, f"{prefix}初始")
+        cost = _field(block, f"{prefix}消耗")
+        dur  = _field(block, f"{prefix}持续")
+        parts: list[str] = []
+        if init:
+            parts.append(f"初始技力 {init}")
+        if cost:
+            parts.append(f"消耗技力 {cost}")
+        if dur:
+            parts.append(f"持續 {dur} 秒")
+        return " ｜ ".join(parts)
+
     skills: list[dict] = []
     for block in _extract_template_blocks(wikitext, "技能"):
         skill_name = _field(block, "技能名")
@@ -333,10 +346,14 @@ def get_skill_data(name: str) -> dict | None:
                 "name_en": _field(block, "技能名en"),
                 "type1": _field(block, "技能类型1"),
                 "type2": _field(block, "技能类型2"),
-                "lv7": _field(block, "技能7描述"),
-                "m1": _field(block, "技能专精1描述"),
-                "m2": _field(block, "技能专精2描述"),
-                "m3": _field(block, "技能专精3描述"),
+                "lv7":    _field(block, "技能7描述"),
+                "lv7_sp": _sp(block, "技能7"),
+                "m1":    _field(block, "技能专精1描述"),
+                "m1_sp": _sp(block, "技能专精1"),
+                "m2":    _field(block, "技能专精2描述"),
+                "m2_sp": _sp(block, "技能专精2"),
+                "m3":    _field(block, "技能专精3描述"),
+                "m3_sp": _sp(block, "技能专精3"),
             }
         )
 
