@@ -18,6 +18,11 @@ RARITY_COLORS = {
     "6": 0xFF6A00,
 }
 
+def _fi(value: str, limit: int = 10) -> bool:
+    """值夠短才 inline，避免欄位內換行。"""
+    return len(value) <= limit
+
+
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
@@ -135,13 +140,13 @@ async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
     if data.get("job_class"):
         embed.add_field(name="職業", value=data["job_class"], inline=True)
     if data.get("branch"):
-        embed.add_field(name="分支", value=data["branch"], inline=True)
+        embed.add_field(name="分支", value=data["branch"], inline=_fi(data["branch"]))
     if data.get("country"):
-        embed.add_field(name="所屬陣營", value=data["country"], inline=True)
+        embed.add_field(name="所屬陣營", value=data["country"], inline=_fi(data["country"]))
     if data.get("organization"):
-        embed.add_field(name="所屬組織", value=data["organization"], inline=True)
+        embed.add_field(name="所屬組織", value=data["organization"], inline=_fi(data["organization"]))
     if data.get("tags"):
-        embed.add_field(name="標籤", value=data["tags"], inline=True)
+        embed.add_field(name="標籤", value=data["tags"], inline=_fi(data["tags"]))
     if data.get("trait"):
         embed.add_field(name="特性", value=data["trait"], inline=False)
 

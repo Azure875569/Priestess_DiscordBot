@@ -177,6 +177,9 @@ def _clean(text: str) -> str:
     text = re.sub(r"<br\s*/?>", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"<[^>]+>", "", text)
     text = re.sub(r"'{2,3}", "", text)
+    # 清除殘留的 |欄位名稱= 捕獲污染（來自同行下個欄位）
+    if "|" in text:
+        text = text[: text.index("|")]
     text = zhconv.convert(text.strip(), "zh-hant")
     return text
 
