@@ -4,7 +4,7 @@ import discord
 import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -473,6 +473,57 @@ async def operator_skills(interaction: discord.Interaction, 幹員名稱: str):
 
         view = SkillView(pages, num_skills=len(data["skills"]))
         await interaction.followup.send(embed=pages[0][1], view=view)
+    except Exception:
+        await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
+
+
+@tree.command(name="陸服卡池未來視", description="顯示明日方舟陸服限時尋訪一覽（由新至舊）")
+async def gacha_future(interaction: discord.Interaction):
+    await interaction.response.defer(thinking=True)
+    try:
+        pools = await asyncio.to_thread(get_gacha_pools)
+        if not pools:
+            await interaction.followup.send(embed=discord.Embed(
+                description="❌ 無法取得尋訪資料，請稍後再試。",
+                color=0xFF0000,
+            ))
+            return
+
+        PER_PAGE = 6
+
+        def fmt_ops(ops: list[str], max_show: int = 12) -> str:
+            if not ops:
+                return ""
+            if len(ops) > max_show:
+                return "、".join(ops[:max_show]) + f"…等{len(ops)}位"
+            return "、".join(ops)
+
+        def make_embed(page_pools: list[dict], page: int, total_pages: int) -> discord.Embed:
+            em = discord.Embed(
+                title="📅 陸服限時尋訪一覽",
+                color=0xE8B84B,
+                url="https://prts.wiki/w/卡池一览",
+            )
+            for p in page_pools:
+                lines = [f"🕐 開啟：{p['start_time']}"]
+                if p["ops_6"] and p["ops_other"]:
+                    lines.append(f"6★：{fmt_ops(p['ops_6'])}")
+                    lines.append(f"5★/4★：{fmt_ops(p['ops_other'])}")
+                elif p["ops_6"]:
+                    lines.append(f"特定幹員：{fmt_ops(p['ops_6'])}")
+                elif p["ops_other"]:
+                    lines.append(f"特定幹員：{fmt_ops(p['ops_other'])}")
+                em.add_field(name=p["name"], value="\n".join(lines), inline=False)
+            em.set_footer(text=f"第 {page}/{total_pages} 頁　資料來源：PRTS Wiki")
+            return em
+
+        total_pages = (len(pools) + PER_PAGE - 1) // PER_PAGE
+        pages = [
+            (f"第{i+1}頁", make_embed(pools[i*PER_PAGE:(i+1)*PER_PAGE], i+1, total_pages))
+            for i in range(total_pages)
+        ]
+
+        await interaction.followup.send(embed=pages[0][1], view=MaterialView(pages))
     except Exception:
         await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 

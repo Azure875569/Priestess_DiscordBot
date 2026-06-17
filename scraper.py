@@ -724,3 +724,103 @@ def get_skin_data(name: str) -> dict | None:
         )
 
     return {"name": op_name, "skins": skins}
+
+
+def _table_rows(text: str) -> list[str]:
+    """依照頂層 |- 分割 wiki 表格，跳過嵌套 {| |} 內的 |-。
+    depth 從 -1 開始，讓外層 {| 進入 depth=0（即「在外層表格內」）。
+    """
+    rows, current, depth = [], [], -1
+    for line in text.split("\n"):
+        depth += line.count("{|") - line.count("|}")
+        if depth == 0 and line.strip() == "|-":
+            if current:
+                rows.append("\n".join(current))
+            current = []
+        else:
+            current.append(line)
+    if current:
+        rows.append("\n".join(current))
+    return rows
+
+
+def _row_cells(row: str) -> list[str]:
+    """從表格行取得各欄位，跳過嵌套表格內的 | 分隔。"""
+    cells, current, depth, in_cell = [], [], 0, False
+    for line in row.split("\n"):
+        if depth == 0 and line.startswith("|") and not line.startswith("|-"):
+            if in_cell:
+                cells.append("\n".join(current))
+            current = [line[1:]]
+            in_cell = True
+        else:
+            current.append(line)
+        depth = max(0, depth + line.count("{|") - line.count("|}"))
+    if current and in_cell:
+        cells.append("\n".join(current))
+    return cells
+
+
+def get_gacha_pools() -> list[dict]:
+    """從卡池一覽擷取限時尋訪列表，由新至舊。"""
+    try:
+        r = requests.get(
+            f"{BASE_URL}/api.php",
+            params={
+                "action": "parse",
+                "page": "卡池一览",
+                "prop": "wikitext",
+                "format": "json",
+            },
+            headers=HEADERS,
+            timeout=15,
+        )
+        wt = r.json().get("parse", {}).get("wikitext", {}).get("*", "")
+    except Exception:
+        return []
+
+    section_m = re.search(r"==限时寻访==(.*?)(?=\n==|\Z)", wt, re.DOTALL)
+    if not section_m:
+        return []
+
+    pools: list[dict] = []
+    for row in _table_rows(section_m.group(1)):
+        cells = _row_cells(row)
+        if len(cells) < 3:
+            continue
+
+        # 欄位 0：尋訪名稱（排除圖片連結）
+        name_m = re.search(r"\[\[(?!文件:)([^\]|]+)(?:\|([^\]]+))?\]\]", cells[0])
+        if not name_m:
+            continue
+        pool_name = (name_m.group(2) or name_m.group(1)).strip()
+
+        # 欄位 1：開始時間
+        time_m = re.search(r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})~", cells[1])
+        if not time_m:
+            continue
+
+        # 欄位 2：6★ 幹員
+        ops_6 = [
+            zhconv.convert(op.strip(), "zh-hant")
+            for op in re.findall(r"\{\{干员头像\|([^|}]+)", cells[2])
+        ]
+
+        # 欄位 3：5★/4★ 幹員
+        ops_other: list[str] = []
+        if len(cells) > 3:
+            ops_other = [
+                zhconv.convert(op.strip(), "zh-hant")
+                for op in re.findall(r"\{\{干员头像\|([^|}]+)", cells[3])
+            ]
+
+        pools.append(
+            {
+                "name": zhconv.convert(pool_name, "zh-hant"),
+                "start_time": time_m.group(1),
+                "ops_6": ops_6,
+                "ops_other": ops_other,
+            }
+        )
+
+    return pools
