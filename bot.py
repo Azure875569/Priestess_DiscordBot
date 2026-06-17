@@ -4,7 +4,7 @@ import discord
 import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
-from scraper import get_operator_data, load_operator_names, search_operator_names, RARITY_STARS
+from scraper import get_operator_data, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -166,8 +166,18 @@ async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
             embed2.add_field(name=label, value=data[f"stats_e{elite}"], inline=False)
     if data.get("trust_bonus"):
         embed2.add_field(name="信賴加成", value=data["trust_bonus"], inline=False)
-    if data.get("attack_range"):
-        embed2.add_field(name="攻擊範圍", value=data["attack_range"], inline=False)
+    # 攻擊範圍（依 range ID 分組，相同則合併標籤）
+    range_groups: dict[str, list[str]] = {}
+    for elite, label in (("0", "精零"), ("1", "精一"), ("2", "精二")):
+        rid = data.get(f"range_e{elite}")
+        if rid:
+            range_groups.setdefault(rid, []).append(label)
+    for rid, labels in range_groups.items():
+        embed2.add_field(
+            name=f"攻擊範圍（{'・'.join(labels)}）",
+            value=render_range(rid),
+            inline=True,
+        )
     if data.get("potentials"):
         embed2.add_field(name="潛能提升", value=data["potentials"], inline=False)
     embed2.set_footer(text="資料來源：PRTS Wiki｜使用 /幹員檔案 查詢背景故事")
@@ -220,7 +230,8 @@ async def on_ready():
     print(f"✅ Bot 已上線：{client.user}（ID: {client.user.id}）")
     print("📡 斜線指令已同步，首次使用可能需要幾分鐘生效")
     asyncio.create_task(asyncio.to_thread(load_operator_names))
-    print("⏳ 正在背景載入幹員清單...")
+    asyncio.create_task(asyncio.to_thread(load_range_data))
+    print("⏳ 正在背景載入幹員清單與範圍資料...")
 
 
 client.run(TOKEN)

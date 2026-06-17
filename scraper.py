@@ -14,8 +14,13 @@ RARITY_STARS = {
 }
 
 HEADERS = {"User-Agent": "PRTSBot/1.0 (Discord Bot for Arknights Wiki)"}
+RANGE_DATA_URL = (
+    "https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData"
+    "/master/zh_CN/gamedata/excel/range_table.json"
+)
 
 _operator_cache: list[str] = []
+_range_cache: dict = {}
 
 
 def load_operator_names() -> list[str]:
@@ -45,6 +50,44 @@ def load_operator_names() -> list[str]:
 
     _operator_cache = names
     return _operator_cache
+
+
+def load_range_data() -> dict:
+    global _range_cache
+    if _range_cache:
+        return _range_cache
+    try:
+        r = requests.get(RANGE_DATA_URL, headers=HEADERS, timeout=15)
+        _range_cache = r.json()
+    except Exception:
+        _range_cache = {}
+    return _range_cache
+
+
+def render_range(range_id: str) -> str:
+    info = load_range_data().get(range_id, {})
+    grids = info.get("grids", [])
+    if not grids:
+        return f"`{range_id}`"
+
+    range_set = {(g["row"], g["col"]) for g in grids}
+    all_rows = [g["row"] for g in grids] + [0]
+    all_cols = [g["col"] for g in grids] + [0]
+    min_row, max_row = min(all_rows), max(all_rows)
+    min_col, max_col = min(all_cols), max(all_cols)
+
+    lines = []
+    for row in range(max_row, min_row - 1, -1):
+        line = []
+        for col in range(min_col, max_col + 1):
+            if row == 0 and col == 0:
+                line.append("🔴")
+            elif (row, col) in range_set:
+                line.append("🟦")
+            else:
+                line.append("⬛")
+        lines.append("".join(line))
+    return "\n".join(lines)
 
 
 def search_operator_names(query: str) -> list[str]:
@@ -182,14 +225,11 @@ def _parse_wikitext(wikitext: str, fallback_name: str) -> dict:
     if trust:
         d["trust_bonus"] = " ｜ ".join(trust)
 
-    # 攻擊範圍
-    range_parts = []
-    for elite, label in (("0", "精零"), ("1", "精一"), ("2", "精二")):
+    # 攻擊範圍（原始 ID，供 render_range 使用）
+    for elite in ("0", "1", "2"):
         v = _field(wikitext, f"精英{elite}范围")
         if v:
-            range_parts.append(f"{label}：{v}")
-    if range_parts:
-        d["attack_range"] = " ｜ ".join(range_parts)
+            d[f"range_e{elite}"] = v
 
     # 潛能提升
     pots = []
