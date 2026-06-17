@@ -168,13 +168,21 @@ def _get_image_urls(name: str) -> dict:
 
 def _clean(text: str) -> str:
     text = re.sub(r"\[\[(?:[^\|\]]+\|)?([^\]]+)\]\]", r"\1", text)
-    # 保留 color/顯示模板的可見文字，例如 {{color|#hex|文字}} → 文字
-    text = re.sub(r"\{\{color\|[^|{}\n]+\|([^{}\n]+)\}\}", r"\1", text)
-    text = re.sub(r"\{\{\*\|[^|{}\n]+\|([^{}\n]+)\}\}", r"\1", text)
-    # 移除其餘模板
+    # 多輪清理以處理巢狀模板
+    for _ in range(4):
+        text = re.sub(r"\{\{color\|[^|{}\n]+\|([^{}\n]+)\}\}", r"\1", text)
+        text = re.sub(r"\{\{\*\|[^|{}\n]+\|([^{}\n]+)\}\}", r"\1", text)
+        text = re.sub(r"\{\{\*\*\|[^|{}\n]+\|([^{}\n]+)\}\}", r"\1", text)
+        # {{修正|可見文字|其他參數}} → 可見文字
+        text = re.sub(r"\{\{修正\|([^|{}\n]+)(?:\|[^{}]*)?\}\}", r"\1", text)
+        # {{变动数值lite|type|color|值}} → 值
+        text = re.sub(
+            r"\{\{变动数值lite\|[^|{}\n]*\|[^|{}\n]*\|([^|{}\n]+)(?:\|[^{}]*)?\}\}",
+            r"\1",
+            text,
+        )
     text = re.sub(r"\{\{[^{}]*\}\}", "", text)
-    # <br> 換行符號轉空格
-    text = re.sub(r"<br\s*/?>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
     text = re.sub(r"<[^>]+>", "", text)
     text = re.sub(r"'{2,3}", "", text)
     # 清除殘留的 |欄位名稱= 捕獲污染（來自同行下個欄位）
@@ -182,6 +190,33 @@ def _clean(text: str) -> str:
         text = text[: text.index("|")]
     text = zhconv.convert(text.strip(), "zh-hant")
     return text
+
+
+def _extract_template_blocks(wikitext: str, template_name: str) -> list[str]:
+    """以平衡括號法提取所有 {{template_name...}} 區塊的原始內容。"""
+    blocks: list[str] = []
+    search = "{{" + template_name
+    start = 0
+    while True:
+        pos = wikitext.find(search, start)
+        if pos == -1:
+            break
+        depth = 0
+        i = pos
+        while i < len(wikitext) - 1:
+            if wikitext[i : i + 2] == "{{":
+                depth += 1
+                i += 2
+            elif wikitext[i : i + 2] == "}}":
+                depth -= 1
+                i += 2
+                if depth == 0:
+                    blocks.append(wikitext[pos:i])
+                    break
+            else:
+                i += 1
+        start = pos + 2
+    return blocks
 
 
 def _field(wikitext: str, *names: str) -> str:
@@ -256,3 +291,85 @@ def _parse_wikitext(wikitext: str, fallback_name: str) -> dict:
     d["file4"] = _field(wikitext, "档案四", "檔案四")
 
     return {k: v for k, v in d.items() if v}
+
+
+def get_skill_data(name: str) -> dict | None:
+    name = zhconv.convert(name, "zh-hans")
+    params = {
+        "action": "parse",
+        "page": name,
+        "prop": "wikitext",
+        "format": "json",
+        "redirects": 1,
+    }
+    try:
+        response = requests.get(
+            f"{BASE_URL}/api.php", params=params, headers=HEADERS, timeout=10
+        )
+        data = response.json()
+    except Exception:
+        return None
+
+    if "error" in data:
+        return None
+
+    wikitext = data.get("parse", {}).get("wikitext", {}).get("*", "")
+    if not wikitext:
+        return None
+
+    op_name = zhconv.convert(
+        _field(wikitext, "干员名", "幹員名") or name, "zh-hant"
+    )
+
+    # ── 技能 ──────────────────────────────────────────────────
+    skills: list[dict] = []
+    for block in _extract_template_blocks(wikitext, "技能"):
+        skill_name = _field(block, "技能名")
+        if not skill_name:
+            continue
+        skills.append(
+            {
+                "name": skill_name,
+                "name_en": _field(block, "技能名en"),
+                "type1": _field(block, "技能类型1"),
+                "type2": _field(block, "技能类型2"),
+                "lv7": _field(block, "技能7描述"),
+                "m1": _field(block, "技能专精1描述"),
+                "m2": _field(block, "技能专精2描述"),
+                "m3": _field(block, "技能专精3描述"),
+            }
+        )
+
+    # ── 天賦 ──────────────────────────────────────────────────
+    talents: list[dict] = []
+    for block in _extract_template_blocks(wikitext, "天赋列表"):
+        group = _field(block, "天赋")
+        if not group:
+            continue
+        # 優先取精二效果，沒有則取精一
+        t_name = _field(block, "天赋2") or _field(block, "天赋1")
+        t_cond = _field(block, "天赋2条件") or _field(block, "天赋1条件")
+        t_effect = _field(block, "天赋2效果") or _field(block, "天赋1效果")
+        talents.append(
+            {"group": group, "name": t_name, "condition": t_cond, "effect": t_effect}
+        )
+
+    # ── 模組 ──────────────────────────────────────────────────
+    modules: list[dict] = []
+    for block in _extract_template_blocks(wikitext, "模组"):
+        if "|基础证章=yes" in block:
+            continue
+        mod_name = _field(block, "名称")
+        if not mod_name:
+            continue
+        modules.append(
+            {
+                "name": mod_name,
+                "type_code": _field(block, "类型"),
+                "trait": _field(block, "特性"),
+                "talent2": _field(block, "天赋2"),
+                "talent3": _field(block, "天赋3"),
+            }
+        )
+
+    return {"name": op_name, "skills": skills[:3], "talents": talents, "modules": modules}

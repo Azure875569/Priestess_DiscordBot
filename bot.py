@@ -4,7 +4,7 @@ import discord
 import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
-from scraper import get_operator_data, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
+from scraper import get_operator_data, get_skill_data, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -26,6 +26,35 @@ def _fi(value: str, limit: int = 10) -> bool:
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
+
+
+class SkillView(discord.ui.View):
+    def __init__(self, pages: list[tuple[str, discord.Embed]]):
+        super().__init__(timeout=180)
+        self.pages = pages
+        self.current = 0
+        self._build()
+
+    def _build(self) -> None:
+        self.clear_items()
+        for i, (label, _) in enumerate(self.pages):
+            style = discord.ButtonStyle.primary if i == self.current else discord.ButtonStyle.secondary
+            btn = discord.ui.Button(label=label, style=style, row=0)
+            btn.callback = self._make_cb(i)
+            self.add_item(btn)
+        del_btn = discord.ui.Button(label="🗑️", style=discord.ButtonStyle.danger, row=1)
+        del_btn.callback = self._delete
+        self.add_item(del_btn)
+
+    def _make_cb(self, index: int):
+        async def cb(interaction: discord.Interaction):
+            self.current = index
+            self._build()
+            await interaction.response.edit_message(embed=self.pages[index][1], view=self)
+        return cb
+
+    async def _delete(self, interaction: discord.Interaction):
+        await interaction.message.delete()
 
 
 class DeleteView(discord.ui.View):
@@ -245,6 +274,78 @@ async def operator_lore(interaction: discord.Interaction, 幹員名稱: str):
 
     embed.set_footer(text="資料來源：PRTS Wiki")
     await interaction.followup.send(embed=embed, view=DeleteView())
+
+
+@tree.command(name="幹員技能", description="查詢幹員技能、天賦與模組資訊")
+@app_commands.describe(幹員名稱="輸入幹員名稱，例如：銀灰、能天使")
+@app_commands.autocomplete(幹員名稱=operator_autocomplete)
+async def operator_skills(interaction: discord.Interaction, 幹員名稱: str):
+    await interaction.response.defer(thinking=True)
+
+    data = await asyncio.to_thread(get_skill_data, 幹員名稱)
+
+    if not data:
+        embed = discord.Embed(
+            description=f"❌ 找不到幹員「{幹員名稱}」，請確認名稱是否正確。",
+            color=0xFF0000,
+        )
+        await interaction.followup.send(embed=embed)
+        return
+
+    # 取稀有度顏色
+    op = await asyncio.to_thread(get_operator_data, 幹員名稱)
+    color = RARITY_COLORS.get((op or {}).get("rarity", ""), 0x7289DA)
+    name = data["name"]
+    url = f"https://prts.wiki/w/{zhconv.convert(幹員名稱, 'zh-hans')}"
+    pages: list[tuple[str, discord.Embed]] = []
+
+    # ── 技能頁 ────────────────────────────────────────────────
+    for i, skill in enumerate(data["skills"], 1):
+        type_line = " ｜ ".join(filter(None, [skill.get("type1"), skill.get("type2")]))
+        em = discord.Embed(
+            title=f"🎯 {name}｜技能 {i}：{skill['name']}",
+            description=type_line or None,
+            color=color,
+            url=url,
+        )
+        if skill.get("lv7"):
+            em.add_field(name="Lv.7", value=skill["lv7"], inline=False)
+        for rank, key in [("專精 1", "m1"), ("專精 2", "m2"), ("專精 3", "m3")]:
+            if skill.get(key):
+                em.add_field(name=rank, value=skill[key], inline=False)
+        em.set_footer(text="資料來源：PRTS Wiki")
+        pages.append((f"技能 {i}", em))
+
+    # ── 天賦頁 ────────────────────────────────────────────────
+    em = discord.Embed(title=f"💫 {name}｜天賦", color=color, url=url)
+    for t in data["talents"]:
+        field_name = f"{t['group']}：{t['name']}" if t.get("name") else t["group"]
+        cond = f"【{t['condition']}】" if t.get("condition") else ""
+        field_val = f"{cond}{t['effect']}" if t.get("effect") else "暫無資料"
+        em.add_field(name=field_name, value=field_val, inline=False)
+    if not data["talents"]:
+        em.description = "暫無天賦資料"
+    em.set_footer(text="資料來源：PRTS Wiki")
+    pages.append(("天賦", em))
+
+    # ── 模組頁 ────────────────────────────────────────────────
+    em = discord.Embed(title=f"🔧 {name}｜模組", color=color, url=url)
+    if data["modules"]:
+        for mod in data["modules"]:
+            header = mod["name"] + (f"（{mod['type_code']}）" if mod.get("type_code") else "")
+            if mod.get("trait"):
+                em.add_field(name=header, value=mod["trait"], inline=False)
+            if mod.get("talent2"):
+                em.add_field(name="天賦更新（等級 2）", value=mod["talent2"], inline=False)
+            if mod.get("talent3"):
+                em.add_field(name="天賦更新（等級 3）", value=mod["talent3"], inline=False)
+    else:
+        em.description = "此幹員暫無專屬模組"
+    em.set_footer(text="資料來源：PRTS Wiki")
+    pages.append(("模組", em))
+
+    view = SkillView(pages)
+    await interaction.followup.send(embed=pages[0][1], view=view)
 
 
 @client.event
