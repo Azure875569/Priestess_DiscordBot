@@ -168,7 +168,13 @@ def _get_image_urls(name: str) -> dict:
 
 def _clean(text: str) -> str:
     text = re.sub(r"\[\[(?:[^\|\]]+\|)?([^\]]+)\]\]", r"\1", text)
-    text = re.sub(r"\{\{[^\}]*\}\}", "", text)
+    # 保留 color/顯示模板的可見文字，例如 {{color|#hex|文字}} → 文字
+    text = re.sub(r"\{\{color\|[^|{}\n]+\|([^{}\n]+)\}\}", r"\1", text)
+    text = re.sub(r"\{\{\*\|[^|{}\n]+\|([^{}\n]+)\}\}", r"\1", text)
+    # 移除其餘模板
+    text = re.sub(r"\{\{[^{}]*\}\}", "", text)
+    # <br> 換行符號轉空格
+    text = re.sub(r"<br\s*/?>", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"<[^>]+>", "", text)
     text = re.sub(r"'{2,3}", "", text)
     text = zhconv.convert(text.strip(), "zh-hant")
@@ -177,7 +183,7 @@ def _clean(text: str) -> str:
 
 def _field(wikitext: str, *names: str) -> str:
     for name in names:
-        m = re.search(rf"\|{re.escape(name)}\s*=\s*([^\|\}}\n]+)", wikitext)
+        m = re.search(rf"\|{re.escape(name)}\s*=\s*([^\n]+)", wikitext)
         if m:
             return _clean(m.group(1))
     return ""
