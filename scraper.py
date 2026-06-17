@@ -81,10 +81,18 @@ def get_operator_data(name: str) -> dict | None:
     return result
 
 
-def _get_image_urls(name: str) -> dict[str, str]:
+_ELITE_LABELS: dict[int, list[str]] = {
+    1: ["精零"],
+    2: ["精零", "精二"],
+    3: ["精零", "精一", "精二"],
+}
+
+
+def _get_image_urls(name: str) -> dict:
+    titles = "|".join(f"文件:立绘_{name}_{i}.png" for i in range(1, 5))
     params = {
         "action": "query",
-        "titles": f"文件:立绘_{name}_1.png|文件:立绘_{name}_2.png",
+        "titles": titles,
         "prop": "imageinfo",
         "iiprop": "url",
         "format": "json",
@@ -93,19 +101,26 @@ def _get_image_urls(name: str) -> dict[str, str]:
         r = requests.get(f"{BASE_URL}/api.php", params=params, headers=HEADERS, timeout=10)
         pages = r.json()["query"]["pages"]
     except Exception:
-        return {}
+        return {"images": []}
 
-    urls = {}
+    urls: dict[int, str] = {}
     for page in pages.values():
+        if "missing" in page:
+            continue
         info = page.get("imageinfo", [])
         if not info:
             continue
-        title = page.get("title", "")
-        if title.endswith("1.png"):
-            urls["img_base"] = info[0]["url"]
-        elif title.endswith("2.png"):
-            urls["img_elite2"] = info[0]["url"]
-    return urls
+        m = re.search(r"(\d+)\.png$", page.get("title", ""))
+        if m:
+            urls[int(m.group(1))] = info[0]["url"]
+
+    if not urls:
+        return {"images": []}
+
+    sorted_urls = [urls[k] for k in sorted(urls.keys())]
+    count = len(sorted_urls)
+    labels = _ELITE_LABELS.get(count, [f"精{i}" for i in range(count)])
+    return {"images": list(zip(labels, sorted_urls))}
 
 
 def _clean(text: str) -> str:

@@ -23,6 +23,32 @@ client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
 
+class EliteImageView(discord.ui.View):
+    def __init__(self, images: list[tuple[str, str]], embed: discord.Embed):
+        super().__init__(timeout=180)
+        self.embed = embed
+        self.images = images
+        self._btns: list[discord.ui.Button] = []
+
+        for i, (label, _) in enumerate(images):
+            btn = discord.ui.Button(
+                label=label,
+                style=discord.ButtonStyle.primary if i == 0 else discord.ButtonStyle.secondary,
+            )
+            btn.callback = self._make_callback(i)
+            self.add_item(btn)
+            self._btns.append(btn)
+
+    def _make_callback(self, index: int):
+        async def callback(interaction: discord.Interaction):
+            _, url = self.images[index]
+            self.embed.set_image(url=url)
+            for i, btn in enumerate(self._btns):
+                btn.style = discord.ButtonStyle.primary if i == index else discord.ButtonStyle.secondary
+            await interaction.response.edit_message(embed=self.embed, view=self)
+        return callback
+
+
 async def operator_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
@@ -107,14 +133,16 @@ async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
     if credits:
         embed.add_field(name="製作人員", value="　".join(credits), inline=False)
 
-    if data.get("img_base"):
-        embed.set_thumbnail(url=data["img_base"])
-    if data.get("img_elite2"):
-        embed.set_image(url=data["img_elite2"])
+    images = data.get("images", [])
+    if images:
+        embed.set_image(url=images[0][1])
 
     embed.set_footer(text="資料來源：PRTS Wiki｜使用 /幹員檔案 查詢背景故事")
 
-    await interaction.followup.send(embed=embed)
+    if len(images) > 1:
+        await interaction.followup.send(embed=embed, view=EliteImageView(images, embed))
+    else:
+        await interaction.followup.send(embed=embed)
 
 
 @tree.command(name="幹員檔案", description="查詢幹員背景故事（檔案一～四）")
