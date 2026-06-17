@@ -157,14 +157,48 @@ def _parse_wikitext(wikitext: str, fallback_name: str) -> dict:
     d["jp_va"] = _field(wikitext, "日文配音")
     d["en_va"] = _field(wikitext, "英文配音")
 
-    d["hp"] = _field(wikitext, "生命上限")
-    d["atk"] = _field(wikitext, "攻击力", "攻擊力")
-    d["defense"] = _field(wikitext, "防御力", "防禦力")
-    d["res"] = _field(wikitext, "法术抗性", "法術抗性")
     d["block"] = _field(wikitext, "阻挡数", "阻擋數")
     d["cost"] = _field(wikitext, "部署费用", "部署費用")
     d["redeploy"] = _field(wikitext, "再部署")
     d["atk_speed"] = _field(wikitext, "攻击速度", "攻擊速度")
+
+    # 各精英等級滿級屬性
+    _STAT_LABEL = {"生命上限": "HP", "攻击": "攻擊", "防御": "防禦", "法术抗性": "法抗"}
+    for elite in ("0", "1", "2"):
+        parts = []
+        for field, label in _STAT_LABEL.items():
+            v = _field(wikitext, f"精英{elite}_满级_{field}")
+            if v:
+                parts.append(f"{label} {v}")
+        if parts:
+            d[f"stats_e{elite}"] = " ｜ ".join(parts)
+
+    # 信賴加成
+    trust = []
+    for field, label in {"生命上限": "HP", "攻击": "攻擊", "防御": "防禦"}.items():
+        v = _field(wikitext, f"信赖加成_{field}")
+        if v and v != "0":
+            trust.append(f"{label} +{v}")
+    if trust:
+        d["trust_bonus"] = " ｜ ".join(trust)
+
+    # 攻擊範圍
+    range_parts = []
+    for elite, label in (("0", "精零"), ("1", "精一"), ("2", "精二")):
+        v = _field(wikitext, f"精英{elite}范围")
+        if v:
+            range_parts.append(f"{label}：{v}")
+    if range_parts:
+        d["attack_range"] = " ｜ ".join(range_parts)
+
+    # 潛能提升
+    pots = []
+    for i in range(2, 7):
+        v = _field(wikitext, f"潜能{i}")
+        if v:
+            pots.append(f"潛能 {i}：{v}")
+    if pots:
+        d["potentials"] = "\n".join(pots)
 
     d["file1"] = _field(wikitext, "档案一", "檔案一")
     d["file2"] = _field(wikitext, "档案二", "檔案二")

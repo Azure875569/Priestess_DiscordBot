@@ -23,30 +23,53 @@ client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
 
-class EliteImageView(discord.ui.View):
-    def __init__(self, images: list[tuple[str, str]], embed: discord.Embed):
+class OperatorView(discord.ui.View):
+    def __init__(self, embed1: discord.Embed, embed2: discord.Embed, images: list[tuple[str, str]]):
         super().__init__(timeout=180)
-        self.embed = embed
+        self.embed1 = embed1
+        self.embed2 = embed2
         self.images = images
-        self._btns: list[discord.ui.Button] = []
+        self._img_btns: list[discord.ui.Button] = []
+        self._build_page1()
 
-        for i, (label, _) in enumerate(images):
+    def _build_page1(self) -> None:
+        self.clear_items()
+        self._img_btns = []
+        for i, (label, _) in enumerate(self.images):
             btn = discord.ui.Button(
                 label=label,
                 style=discord.ButtonStyle.primary if i == 0 else discord.ButtonStyle.secondary,
+                row=0,
             )
-            btn.callback = self._make_callback(i)
+            btn.callback = self._make_img_callback(i)
             self.add_item(btn)
-            self._btns.append(btn)
+            self._img_btns.append(btn)
+        nav = discord.ui.Button(label="屬性・潛能 ▶", style=discord.ButtonStyle.secondary, row=1)
+        nav.callback = self._go_page2
+        self.add_item(nav)
 
-    def _make_callback(self, index: int):
+    def _build_page2(self) -> None:
+        self.clear_items()
+        nav = discord.ui.Button(label="◀ 基本資料", style=discord.ButtonStyle.secondary)
+        nav.callback = self._go_page1
+        self.add_item(nav)
+
+    def _make_img_callback(self, index: int):
         async def callback(interaction: discord.Interaction):
             _, url = self.images[index]
-            self.embed.set_image(url=url)
-            for i, btn in enumerate(self._btns):
+            self.embed1.set_image(url=url)
+            for i, btn in enumerate(self._img_btns):
                 btn.style = discord.ButtonStyle.primary if i == index else discord.ButtonStyle.secondary
-            await interaction.response.edit_message(embed=self.embed, view=self)
+            await interaction.response.edit_message(embed=self.embed1, view=self)
         return callback
+
+    async def _go_page2(self, interaction: discord.Interaction) -> None:
+        self._build_page2()
+        await interaction.response.edit_message(embed=self.embed2, view=self)
+
+    async def _go_page1(self, interaction: discord.Interaction) -> None:
+        self._build_page1()
+        await interaction.response.edit_message(embed=self.embed1, view=self)
 
 
 async def operator_autocomplete(
@@ -95,7 +118,7 @@ async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
     if data.get("branch"):
         embed.add_field(name="分支", value=data["branch"], inline=True)
     if data.get("country"):
-        embed.add_field(name="所屬國家", value=data["country"], inline=True)
+        embed.add_field(name="所屬陣營", value=data["country"], inline=True)
     if data.get("organization"):
         embed.add_field(name="所屬組織", value=data["organization"], inline=True)
     if data.get("tags"):
@@ -103,24 +126,18 @@ async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
     if data.get("trait"):
         embed.add_field(name="特性", value=data["trait"], inline=False)
 
-    # 基礎數值
-    stats = []
-    if data.get("hp"):
-        stats.append(f"HP {data['hp']}")
-    if data.get("atk"):
-        stats.append(f"攻擊 {data['atk']}")
-    if data.get("defense"):
-        stats.append(f"防禦 {data['defense']}")
-    if data.get("res"):
-        stats.append(f"法抗 {data['res']}")
+    # 基礎數值（部署相關）
+    deploy = []
     if data.get("block"):
-        stats.append(f"阻擋 {data['block']}")
+        deploy.append(f"阻擋 {data['block']}")
     if data.get("cost"):
-        stats.append(f"費用 {data['cost']}")
+        deploy.append(f"費用 {data['cost']}")
     if data.get("redeploy"):
-        stats.append(f"再部署 {data['redeploy']}秒")
-    if stats:
-        embed.add_field(name="基礎數值（精二滿級）", value=" ｜ ".join(stats), inline=False)
+        deploy.append(f"再部署 {data['redeploy']}秒")
+    if data.get("atk_speed"):
+        deploy.append(f"攻速 {data['atk_speed']}")
+    if deploy:
+        embed.add_field(name="部署數值", value=" ｜ ".join(deploy), inline=False)
 
     # 製作人員
     credits = []
@@ -136,13 +153,26 @@ async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
     images = data.get("images", [])
     if images:
         embed.set_image(url=images[0][1])
-
     embed.set_footer(text="資料來源：PRTS Wiki｜使用 /幹員檔案 查詢背景故事")
 
-    if len(images) > 1:
-        await interaction.followup.send(embed=embed, view=EliteImageView(images, embed))
-    else:
-        await interaction.followup.send(embed=embed)
+    # 建立第二頁（屬性・潛能）
+    embed2 = discord.Embed(
+        title=f"📊 {data.get('name', 幹員名稱)}｜屬性・潛能",
+        color=color,
+        url=f"https://prts.wiki/w/{幹員名稱}",
+    )
+    for elite, label in (("0", "精零滿級"), ("1", "精一滿級"), ("2", "精二滿級")):
+        if data.get(f"stats_e{elite}"):
+            embed2.add_field(name=label, value=data[f"stats_e{elite}"], inline=False)
+    if data.get("trust_bonus"):
+        embed2.add_field(name="信賴加成", value=data["trust_bonus"], inline=False)
+    if data.get("attack_range"):
+        embed2.add_field(name="攻擊範圍", value=data["attack_range"], inline=False)
+    if data.get("potentials"):
+        embed2.add_field(name="潛能提升", value=data["potentials"], inline=False)
+    embed2.set_footer(text="資料來源：PRTS Wiki｜使用 /幹員檔案 查詢背景故事")
+
+    await interaction.followup.send(embed=embed, view=OperatorView(embed, embed2, images))
 
 
 @tree.command(name="幹員檔案", description="查詢幹員背景故事（檔案一～四）")
