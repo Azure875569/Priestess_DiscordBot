@@ -712,7 +712,7 @@ def get_skin_data(name: str) -> dict | None:
     skins: list[dict] = []
     for skin_n, skin_name_hans, series_base in outfits:
         info = series_cache.get(series_base, {}).get(skin_name_hans, {})
-        image_url = _get_file_url(f"半身像 {hans_name} skin{skin_n}.png")
+        image_url = _get_file_url(f"立绘 {hans_name} skin{skin_n}.png")
         skins.append(
             {
                 "name": zhconv.convert(skin_name_hans, "zh-hant"),
