@@ -4,7 +4,8 @@ import discord
 import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
+import random
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -475,6 +476,37 @@ async def operator_skills(interaction: discord.Interaction, 幹員名稱: str):
         await interaction.followup.send(embed=pages[0][1], view=view)
     except Exception:
         await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
+
+
+@tree.command(name="抽老婆", description="隨機抽取今天的老婆幹員")
+async def draw_wife(interaction: discord.Interaction):
+    try:
+        names = get_all_operator_names()
+        if not names:
+            await interaction.response.send_message("❌ 幹員資料尚未載入，請稍後再試。", ephemeral=True)
+            return
+
+        await interaction.response.send_message(
+            f"{interaction.user.mention} 今天的老婆是..."
+        )
+
+        name_hans = random.choice(names)
+        # 同步進行 API 取圖與等待 3 秒
+        (trad_name, img_url), _ = await asyncio.gather(
+            asyncio.to_thread(get_wife_image, name_hans),
+            asyncio.sleep(3),
+        )
+
+        em = discord.Embed(title=trad_name, color=0xFF69B4)
+        if img_url:
+            em.set_image(url=img_url)
+        em.set_footer(text="今日份的老婆 💕")
+        await interaction.followup.send(embed=em)
+    except Exception:
+        try:
+            await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
+        except Exception:
+            pass
 
 
 @tree.command(name="陸服卡池未來視", description="顯示明日方舟陸服限時尋訪一覽（由新至舊）")

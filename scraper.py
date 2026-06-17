@@ -52,6 +52,20 @@ def load_operator_names() -> list[str]:
     return _operator_cache
 
 
+def get_all_operator_names() -> list[str]:
+    """回傳已快取的幹員名稱列表（簡體中文）。"""
+    return _operator_cache
+
+
+def get_wife_image(hans_name: str) -> tuple[str, str]:
+    """回傳 (繁體名稱, 立繪URL)，優先精二，次選精零。"""
+    trad = zhconv.convert(hans_name, "zh-hant")
+    url = _get_file_url(f"立绘_{hans_name}_2.png")
+    if not url:
+        url = _get_file_url(f"立绘_{hans_name}_1.png")
+    return trad, url
+
+
 def load_range_data() -> dict:
     global _range_cache
     if _range_cache:
