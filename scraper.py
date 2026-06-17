@@ -578,9 +578,9 @@ def get_lore_data(name: str) -> dict | None:
         cond_m = re.search(rf"\|档案{n}条件\s*=\s*([^\n|{{}}]+)", wikitext)
         condition = zhconv.convert(cond_m.group(1).strip(), "zh-hant") if cond_m else ""
 
-        # 多行內容：抓到下一個 |field= 為止
+        # 多行內容：遇到下一個欄位、模板結尾 }} 或 ==章節== 即停止
         content_m = re.search(
-            rf"\|档案{n}文本\s*=\s*(.*?)(?=\n\||\Z)", wikitext, re.DOTALL
+            r"\|档案" + str(n) + r"文本\s*=\s*(.*?)(?=\n\||\n}}|\n==|\Z)", wikitext, re.DOTALL
         )
         content = ""
         if content_m:
