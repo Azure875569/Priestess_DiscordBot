@@ -168,8 +168,6 @@ async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
     credits = []
     if data.get("artist"):
         credits.append(f"畫師：{data['artist']}")
-    if data.get("cn_va"):
-        credits.append(f"中文CV：{data['cn_va']}")
     if data.get("jp_va"):
         credits.append(f"日文CV：{data['jp_va']}")
     if credits:
