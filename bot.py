@@ -142,99 +142,95 @@ async def operator_autocomplete(
 @app_commands.autocomplete(幹員名稱=operator_autocomplete)
 async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
     await interaction.response.defer(thinking=True)
+    try:
+        data = get_operator_data(幹員名稱)
 
-    data = get_operator_data(幹員名稱)
+        if not data:
+            await interaction.followup.send(embed=discord.Embed(
+                description=f"❌ 找不到幹員「{幹員名稱}」，請確認名稱是否正確。\n繁體與簡體均可，例如：銀灰、银灰、能天使",
+                color=0xFF0000,
+            ))
+            return
 
-    if not data:
+        rarity = data.get("rarity", "")
+        color = RARITY_COLORS.get(rarity, 0x7289DA)
+        stars = RARITY_STARS.get(rarity, rarity)
+
         embed = discord.Embed(
-            description=f"❌ 找不到幹員「{幹員名稱}」，請確認名稱是否正確。\n繁體與簡體均可，例如：銀灰、银灰、能天使",
-            color=0xFF0000,
+            title=f"📋 {data.get('name', 幹員名稱)}",
+            description=data.get("en_name", ""),
+            color=color,
+            url=f"https://prts.wiki/w/{幹員名稱}",
         )
-        await interaction.followup.send(embed=embed)
-        return
 
-    rarity = data.get("rarity", "")
-    color = RARITY_COLORS.get(rarity, 0x7289DA)
-    stars = RARITY_STARS.get(rarity, rarity)
+        if stars:
+            embed.add_field(name="稀有度", value=stars, inline=True)
+        if data.get("job_class"):
+            embed.add_field(name="職業", value=data["job_class"], inline=True)
+        if data.get("branch"):
+            embed.add_field(name="分支", value=data["branch"], inline=_fi(data["branch"]))
+        if data.get("country"):
+            embed.add_field(name="所屬陣營", value=data["country"], inline=_fi(data["country"]))
+        if data.get("organization"):
+            embed.add_field(name="所屬組織", value=data["organization"], inline=_fi(data["organization"]))
+        if data.get("tags"):
+            embed.add_field(name="標籤", value=data["tags"], inline=_fi(data["tags"]))
+        if data.get("trait"):
+            embed.add_field(name="特性", value=data["trait"], inline=False)
 
-    embed = discord.Embed(
-        title=f"📋 {data.get('name', 幹員名稱)}",
-        description=data.get("en_name", ""),
-        color=color,
-        url=f"https://prts.wiki/w/{幹員名稱}",
-    )
+        deploy = []
+        if data.get("block"):
+            deploy.append(f"阻擋 {data['block']}")
+        if data.get("cost"):
+            deploy.append(f"費用 {data['cost']}")
+        if data.get("redeploy"):
+            deploy.append(f"再部署 {data['redeploy']}秒")
+        if data.get("atk_speed"):
+            deploy.append(f"攻速 {data['atk_speed']}")
+        if deploy:
+            embed.add_field(name="部署數值", value=" ｜ ".join(deploy), inline=False)
 
-    # 基本資訊
-    if stars:
-        embed.add_field(name="稀有度", value=stars, inline=True)
-    if data.get("job_class"):
-        embed.add_field(name="職業", value=data["job_class"], inline=True)
-    if data.get("branch"):
-        embed.add_field(name="分支", value=data["branch"], inline=_fi(data["branch"]))
-    if data.get("country"):
-        embed.add_field(name="所屬陣營", value=data["country"], inline=_fi(data["country"]))
-    if data.get("organization"):
-        embed.add_field(name="所屬組織", value=data["organization"], inline=_fi(data["organization"]))
-    if data.get("tags"):
-        embed.add_field(name="標籤", value=data["tags"], inline=_fi(data["tags"]))
-    if data.get("trait"):
-        embed.add_field(name="特性", value=data["trait"], inline=False)
+        credits = []
+        if data.get("artist"):
+            credits.append(f"畫師：{data['artist']}")
+        if data.get("jp_va"):
+            credits.append(f"日文CV：{data['jp_va']}")
+        if credits:
+            embed.add_field(name="製作人員", value="　".join(credits), inline=False)
 
-    # 基礎數值（部署相關）
-    deploy = []
-    if data.get("block"):
-        deploy.append(f"阻擋 {data['block']}")
-    if data.get("cost"):
-        deploy.append(f"費用 {data['cost']}")
-    if data.get("redeploy"):
-        deploy.append(f"再部署 {data['redeploy']}秒")
-    if data.get("atk_speed"):
-        deploy.append(f"攻速 {data['atk_speed']}")
-    if deploy:
-        embed.add_field(name="部署數值", value=" ｜ ".join(deploy), inline=False)
+        images = data.get("images", [])
+        if images:
+            embed.set_image(url=images[0][1])
+        embed.set_footer(text="資料來源：PRTS Wiki｜使用 /幹員檔案 查詢背景故事")
 
-    # 製作人員
-    credits = []
-    if data.get("artist"):
-        credits.append(f"畫師：{data['artist']}")
-    if data.get("jp_va"):
-        credits.append(f"日文CV：{data['jp_va']}")
-    if credits:
-        embed.add_field(name="製作人員", value="　".join(credits), inline=False)
-
-    images = data.get("images", [])
-    if images:
-        embed.set_image(url=images[0][1])
-    embed.set_footer(text="資料來源：PRTS Wiki｜使用 /幹員檔案 查詢背景故事")
-
-    # 建立第二頁（屬性・潛能）
-    embed2 = discord.Embed(
-        title=f"📊 {data.get('name', 幹員名稱)}｜屬性・潛能",
-        color=color,
-        url=f"https://prts.wiki/w/{幹員名稱}",
-    )
-    for elite, label in (("0", "精零滿級"), ("1", "精一滿級"), ("2", "精二滿級")):
-        if data.get(f"stats_e{elite}"):
-            embed2.add_field(name=label, value=data[f"stats_e{elite}"], inline=False)
-    if data.get("trust_bonus"):
-        embed2.add_field(name="信賴加成", value=data["trust_bonus"], inline=False)
-    # 攻擊範圍（依 range ID 分組，相同則合併標籤）
-    range_groups: dict[str, list[str]] = {}
-    for elite, label in (("0", "精零"), ("1", "精一"), ("2", "精二")):
-        rid = data.get(f"range_e{elite}")
-        if rid:
-            range_groups.setdefault(rid, []).append(label)
-    for rid, labels in range_groups.items():
-        embed2.add_field(
-            name=f"攻擊範圍（{'・'.join(labels)}）",
-            value=render_range(rid),
-            inline=True,
+        embed2 = discord.Embed(
+            title=f"📊 {data.get('name', 幹員名稱)}｜屬性・潛能",
+            color=color,
+            url=f"https://prts.wiki/w/{幹員名稱}",
         )
-    if data.get("potentials"):
-        embed2.add_field(name="潛能提升", value=data["potentials"], inline=False)
-    embed2.set_footer(text="資料來源：PRTS Wiki｜使用 /幹員檔案 查詢背景故事")
+        for elite, label in (("0", "精零滿級"), ("1", "精一滿級"), ("2", "精二滿級")):
+            if data.get(f"stats_e{elite}"):
+                embed2.add_field(name=label, value=data[f"stats_e{elite}"], inline=False)
+        if data.get("trust_bonus"):
+            embed2.add_field(name="信賴加成", value=data["trust_bonus"], inline=False)
+        range_groups: dict[str, list[str]] = {}
+        for elite, label in (("0", "精零"), ("1", "精一"), ("2", "精二")):
+            rid = data.get(f"range_e{elite}")
+            if rid:
+                range_groups.setdefault(rid, []).append(label)
+        for rid, labels in range_groups.items():
+            embed2.add_field(
+                name=f"攻擊範圍（{'・'.join(labels)}）",
+                value=render_range(rid),
+                inline=True,
+            )
+        if data.get("potentials"):
+            embed2.add_field(name="潛能提升", value=data["potentials"], inline=False)
+        embed2.set_footer(text="資料來源：PRTS Wiki｜使用 /幹員檔案 查詢背景故事")
 
-    await interaction.followup.send(embed=embed, view=OperatorView(embed, embed2, images))
+        await interaction.followup.send(embed=embed, view=OperatorView(embed, embed2, images))
+    except Exception:
+        await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
 
 @tree.command(name="幹員檔案", description="查詢幹員背景故事（檔案一～四）")
@@ -242,38 +238,35 @@ async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
 @app_commands.autocomplete(幹員名稱=operator_autocomplete)
 async def operator_lore(interaction: discord.Interaction, 幹員名稱: str):
     await interaction.response.defer(thinking=True)
+    try:
+        data = get_operator_data(幹員名稱)
 
-    data = get_operator_data(幹員名稱)
+        if not data:
+            await interaction.followup.send(embed=discord.Embed(
+                description=f"❌ 找不到幹員「{幹員名稱}」的資料。",
+                color=0xFF0000,
+            ))
+            return
 
-    if not data:
+        if not any(data.get(f"file{i}") for i in range(1, 5)):
+            await interaction.followup.send(f"「{data.get('name', 幹員名稱)}」目前沒有檔案資料。")
+            return
+
         embed = discord.Embed(
-            description=f"❌ 找不到幹員「{幹員名稱}」的資料。",
-            color=0xFF0000,
+            title=f"📖 {data.get('name', 幹員名稱)}｜幹員檔案",
+            color=RARITY_COLORS.get(data.get("rarity", ""), 0x7289DA),
+            url=f"https://prts.wiki/w/{幹員名稱}",
         )
-        await interaction.followup.send(embed=embed)
-        return
-
-    has_lore = any(data.get(f"file{i}") for i in range(1, 5))
-    if not has_lore:
-        await interaction.followup.send(f"「{data.get('name', 幹員名稱)}」目前沒有檔案資料。")
-        return
-
-    embed = discord.Embed(
-        title=f"📖 {data.get('name', 幹員名稱)}｜幹員檔案",
-        color=RARITY_COLORS.get(data.get("rarity", ""), 0x7289DA),
-        url=f"https://prts.wiki/w/{幹員名稱}",
-    )
-
-    for i in range(1, 5):
-        content = data.get(f"file{i}", "")
-        if content:
-            # Discord embed field value 限制 1024 字元
-            if len(content) > 1000:
-                content = content[:1000] + "…（詳見 PRTS Wiki）"
-            embed.add_field(name=f"檔案{i}", value=content, inline=False)
-
-    embed.set_footer(text="資料來源：PRTS Wiki")
-    await interaction.followup.send(embed=embed, view=DeleteView())
+        for i in range(1, 5):
+            content = data.get(f"file{i}", "")
+            if content:
+                if len(content) > 1000:
+                    content = content[:1000] + "…（詳見 PRTS Wiki）"
+                embed.add_field(name=f"檔案{i}", value=content, inline=False)
+        embed.set_footer(text="資料來源：PRTS Wiki")
+        await interaction.followup.send(embed=embed, view=DeleteView())
+    except Exception:
+        await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
 
 @tree.command(name="幹員技能", description="查詢幹員技能、天賦與模組資訊")
@@ -281,93 +274,93 @@ async def operator_lore(interaction: discord.Interaction, 幹員名稱: str):
 @app_commands.autocomplete(幹員名稱=operator_autocomplete)
 async def operator_skills(interaction: discord.Interaction, 幹員名稱: str):
     await interaction.response.defer(thinking=True)
+    try:
+        data = await asyncio.to_thread(get_skill_data, 幹員名稱)
 
-    data = await asyncio.to_thread(get_skill_data, 幹員名稱)
+        if not data:
+            await interaction.followup.send(embed=discord.Embed(
+                description=f"❌ 找不到幹員「{幹員名稱}」，請確認名稱是否正確。",
+                color=0xFF0000,
+            ))
+            return
 
-    if not data:
-        embed = discord.Embed(
-            description=f"❌ 找不到幹員「{幹員名稱}」，請確認名稱是否正確。",
-            color=0xFF0000,
-        )
-        await interaction.followup.send(embed=embed)
-        return
+        op = await asyncio.to_thread(get_operator_data, 幹員名稱)
+        color = RARITY_COLORS.get((op or {}).get("rarity", ""), 0x7289DA)
+        name = data["name"]
+        url = f"https://prts.wiki/w/{zhconv.convert(幹員名稱, 'zh-hans')}"
+        pages: list[tuple[str, discord.Embed]] = []
 
-    # 取稀有度顏色
-    op = await asyncio.to_thread(get_operator_data, 幹員名稱)
-    color = RARITY_COLORS.get((op or {}).get("rarity", ""), 0x7289DA)
-    name = data["name"]
-    url = f"https://prts.wiki/w/{zhconv.convert(幹員名稱, 'zh-hans')}"
-    pages: list[tuple[str, discord.Embed]] = []
+        # ── 技能頁 ──────────────────────────────────────────────
+        for i, skill in enumerate(data["skills"], 1):
+            type_line = " ｜ ".join(filter(None, [skill.get("type1"), skill.get("type2")]))
+            em = discord.Embed(
+                title=f"🎯 {name}｜技能 {i}：{skill['name']}",
+                description=type_line or None,
+                color=color,
+                url=url,
+            )
+            is_passive = skill.get("type1") in ("被動", "被动")
 
-    # ── 技能頁 ────────────────────────────────────────────────
-    for i, skill in enumerate(data["skills"], 1):
-        type_line = " ｜ ".join(filter(None, [skill.get("type1"), skill.get("type2")]))
-        em = discord.Embed(
-            title=f"🎯 {name}｜技能 {i}：{skill['name']}",
-            description=type_line or None,
-            color=color,
-            url=url,
-        )
-        is_passive = skill.get("type1") in ("被動", "被动")
+            def _skill_val(desc: str, sp: str, _p: bool = is_passive) -> str:
+                if sp and not _p:
+                    return f"*{sp}*\n{desc}"
+                return desc
 
-        def _skill_val(desc: str, sp: str) -> str:
-            if sp and not is_passive:
-                return f"*{sp}*\n{desc}"
-            return desc
+            if skill.get("lv7"):
+                em.add_field(name="Lv.7", value=_skill_val(skill["lv7"], skill.get("lv7_sp", "")), inline=False)
+            for rank, key in [("專精 1", "m1"), ("專精 2", "m2"), ("專精 3", "m3")]:
+                if skill.get(key):
+                    em.add_field(name=rank, value=_skill_val(skill[key], skill.get(f"{key}_sp", "")), inline=False)
+            em.set_footer(text="資料來源：PRTS Wiki")
+            pages.append((f"技能 {i}", em))
 
-        if skill.get("lv7"):
-            em.add_field(name="Lv.7", value=_skill_val(skill["lv7"], skill.get("lv7_sp", "")), inline=False)
-        for rank, key in [("專精 1", "m1"), ("專精 2", "m2"), ("專精 3", "m3")]:
-            if skill.get(key):
-                em.add_field(name=rank, value=_skill_val(skill[key], skill.get(f"{key}_sp", "")), inline=False)
+        # ── 後勤技能頁 ────────────────────────────────────────────
+        em = discord.Embed(title=f"🏭 {name}｜後勤技能", color=color, url=url)
+        if data.get("base_skills"):
+            for bs in data["base_skills"]:
+                field_name = bs["name"]
+                if bs.get("room"):
+                    field_name = f"[{bs['room']}] {field_name}"
+                if bs.get("phase"):
+                    field_name += f"（{bs['phase']}開放）"
+                em.add_field(name=field_name, value=bs["desc"] or "暫無描述", inline=False)
+        else:
+            em.description = "此幹員暫無後勤技能資料"
         em.set_footer(text="資料來源：PRTS Wiki")
-        pages.append((f"技能 {i}", em))
+        pages.append(("後勤技能", em))
 
-    # ── 後勤技能頁 ──────────────────────────────────────────────
-    em = discord.Embed(title=f"🏭 {name}｜後勤技能", color=color, url=url)
-    if data.get("base_skills"):
-        for bs in data["base_skills"]:
-            field_name = bs["name"]
-            if bs.get("room"):
-                field_name = f"[{bs['room']}] {field_name}"
-            if bs.get("phase"):
-                field_name += f"（{bs['phase']}開放）"
-            em.add_field(name=field_name, value=bs["desc"] or "暫無描述", inline=False)
-    else:
-        em.description = "此幹員暫無後勤技能資料"
-    em.set_footer(text="資料來源：PRTS Wiki")
-    pages.append(("後勤技能", em))
+        # ── 天賦頁 ──────────────────────────────────────────────
+        em = discord.Embed(title=f"💫 {name}｜天賦", color=color, url=url)
+        for t in data["talents"]:
+            field_name = f"{t['group']}：{t['name']}" if t.get("name") else t["group"]
+            cond = f"【{t['condition']}】" if t.get("condition") else ""
+            field_val = f"{cond}{t['effect']}" if t.get("effect") else "暫無資料"
+            em.add_field(name=field_name, value=field_val, inline=False)
+        if not data["talents"]:
+            em.description = "暫無天賦資料"
+        em.set_footer(text="資料來源：PRTS Wiki")
+        pages.append(("天賦", em))
 
-    # ── 天賦頁 ────────────────────────────────────────────────
-    em = discord.Embed(title=f"💫 {name}｜天賦", color=color, url=url)
-    for t in data["talents"]:
-        field_name = f"{t['group']}：{t['name']}" if t.get("name") else t["group"]
-        cond = f"【{t['condition']}】" if t.get("condition") else ""
-        field_val = f"{cond}{t['effect']}" if t.get("effect") else "暫無資料"
-        em.add_field(name=field_name, value=field_val, inline=False)
-    if not data["talents"]:
-        em.description = "暫無天賦資料"
-    em.set_footer(text="資料來源：PRTS Wiki")
-    pages.append(("天賦", em))
+        # ── 模組頁 ──────────────────────────────────────────────
+        em = discord.Embed(title=f"🔧 {name}｜模組", color=color, url=url)
+        if data["modules"]:
+            for mod in data["modules"]:
+                header = mod["name"] + (f"（{mod['type_code']}）" if mod.get("type_code") else "")
+                if mod.get("trait"):
+                    em.add_field(name=header, value=mod["trait"], inline=False)
+                if mod.get("talent2"):
+                    em.add_field(name="天賦更新（等級 2）", value=mod["talent2"], inline=False)
+                if mod.get("talent3"):
+                    em.add_field(name="天賦更新（等級 3）", value=mod["talent3"], inline=False)
+        else:
+            em.description = "此幹員暫無專屬模組"
+        em.set_footer(text="資料來源：PRTS Wiki")
+        pages.append(("模組", em))
 
-    # ── 模組頁 ────────────────────────────────────────────────
-    em = discord.Embed(title=f"🔧 {name}｜模組", color=color, url=url)
-    if data["modules"]:
-        for mod in data["modules"]:
-            header = mod["name"] + (f"（{mod['type_code']}）" if mod.get("type_code") else "")
-            if mod.get("trait"):
-                em.add_field(name=header, value=mod["trait"], inline=False)
-            if mod.get("talent2"):
-                em.add_field(name="天賦更新（等級 2）", value=mod["talent2"], inline=False)
-            if mod.get("talent3"):
-                em.add_field(name="天賦更新（等級 3）", value=mod["talent3"], inline=False)
-    else:
-        em.description = "此幹員暫無專屬模組"
-    em.set_footer(text="資料來源：PRTS Wiki")
-    pages.append(("模組", em))
-
-    view = SkillView(pages)
-    await interaction.followup.send(embed=pages[0][1], view=view)
+        view = SkillView(pages)
+        await interaction.followup.send(embed=pages[0][1], view=view)
+    except Exception:
+        await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
 
 @client.event
