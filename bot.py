@@ -23,6 +23,15 @@ client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
 
+class DeleteView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+
+    @discord.ui.button(label="🗑️", style=discord.ButtonStyle.danger)
+    async def delete(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
+
 class OperatorView(discord.ui.View):
     def __init__(self, embed1: discord.Embed, embed2: discord.Embed, images: list[tuple[str, str]]):
         super().__init__(timeout=180)
@@ -47,12 +56,22 @@ class OperatorView(discord.ui.View):
         nav = discord.ui.Button(label="屬性・潛能 ▶", style=discord.ButtonStyle.secondary, row=1)
         nav.callback = self._go_page2
         self.add_item(nav)
+        self._add_delete_btn(row=1)
 
     def _build_page2(self) -> None:
         self.clear_items()
         nav = discord.ui.Button(label="◀ 基本資料", style=discord.ButtonStyle.secondary)
         nav.callback = self._go_page1
         self.add_item(nav)
+        self._add_delete_btn(row=0)
+
+    def _add_delete_btn(self, row: int) -> None:
+        btn = discord.ui.Button(label="🗑️", style=discord.ButtonStyle.danger, row=row)
+        btn.callback = self._delete
+        self.add_item(btn)
+
+    async def _delete(self, interaction: discord.Interaction) -> None:
+        await interaction.message.delete()
 
     def _make_img_callback(self, index: int):
         async def callback(interaction: discord.Interaction):
@@ -221,7 +240,7 @@ async def operator_lore(interaction: discord.Interaction, 幹員名稱: str):
             embed.add_field(name=f"檔案{i}", value=content, inline=False)
 
     embed.set_footer(text="資料來源：PRTS Wiki")
-    await interaction.followup.send(embed=embed)
+    await interaction.followup.send(embed=embed, view=DeleteView())
 
 
 @client.event
