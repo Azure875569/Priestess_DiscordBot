@@ -448,3 +448,93 @@ def get_skill_data(name: str) -> dict | None:
             pass
 
     return {"name": op_name, "skills": skills[:3], "talents": talents, "modules": modules, "base_skills": base_skills}
+
+
+def _parse_materials(text: str) -> list[tuple[str, str]]:
+    """解析 {{材料消耗|名稱|數量}} 模板，回傳 (繁體名稱, 數量) 列表。"""
+    items = re.findall(r"\{\{材料消耗\|([^|{}]+)\|([^{}]+)\}\}", text)
+    return [(zhconv.convert(n.strip(), "zh-hant"), zhconv.convert(q.strip(), "zh-hant")) for n, q in items]
+
+
+def get_material_data(name: str) -> dict | None:
+    name = zhconv.convert(name, "zh-hans")
+    params = {
+        "action": "parse",
+        "page": name,
+        "prop": "wikitext",
+        "format": "json",
+        "redirects": 1,
+    }
+    try:
+        response = requests.get(
+            f"{BASE_URL}/api.php", params=params, headers=HEADERS, timeout=10
+        )
+        data = response.json()
+    except Exception:
+        return None
+
+    if "error" in data:
+        return None
+
+    wikitext = data.get("parse", {}).get("wikitext", {}).get("*", "")
+    if not wikitext:
+        return None
+
+    op_name = zhconv.convert(
+        _field(wikitext, "干员名", "幹員名") or name, "zh-hant"
+    )
+
+    # ── 技能名稱（依序對應一/二/三）────────────────────────────────
+    skill_names: list[str] = []
+    for block in _extract_template_blocks(wikitext, "技能"):
+        sn = _field(block, "技能名")
+        if sn:
+            skill_names.append(sn)
+
+    # ── 技能專精材料 ──────────────────────────────────────────────
+    masteries: list[dict] = []
+    upgrade_blocks = _extract_template_blocks(wikitext, "技能升级材料")
+    if upgrade_blocks:
+        ub = upgrade_blocks[0]
+        for i, prefix in enumerate(("一", "二", "三")):
+            m1 = re.search(rf"\|{prefix}8\s*=\s*([^\n]+)", ub)
+            if not m1:
+                continue
+            m2 = re.search(rf"\|{prefix}9\s*=\s*([^\n]+)", ub)
+            m3 = re.search(rf"\|{prefix}10\s*=\s*([^\n]+)", ub)
+            masteries.append(
+                {
+                    "name": skill_names[i] if i < len(skill_names) else f"技能{i+1}",
+                    "m1": _parse_materials(m1.group(1)),
+                    "m2": _parse_materials(m2.group(1) if m2 else ""),
+                    "m3": _parse_materials(m3.group(1) if m3 else ""),
+                }
+            )
+
+    # ── 模組解鎖材料 ──────────────────────────────────────────────
+    mod_materials: list[dict] = []
+    for block in _extract_template_blocks(wikitext, "模组"):
+        if "|基础证章=yes" in block:
+            continue
+        mn = re.search(r"\|名称\s*=\s*([^\n|{}]+)", block)
+        if not mn:
+            continue
+        mt = re.search(r"\|类型\s*=\s*([^\n|{}]+)", block)
+        ul = re.search(r"\|解锁等级\s*=\s*([^\n|{}]+)", block)
+        ut = re.search(r"\|解锁信赖\s*=\s*([^\n|{}]+)", block)
+        c1 = re.search(r"\|材料消耗\s*=\s*([^\n]+)", block)
+        c2 = re.search(r"\|材料消耗2\s*=\s*([^\n]+)", block)
+        c3 = re.search(r"\|材料消耗3\s*=\s*([^\n]+)", block)
+        mod_materials.append(
+            {
+                "name": zhconv.convert(mn.group(1).strip(), "zh-hant"),
+                "type_code": zhconv.convert(mt.group(1).strip(), "zh-hant") if mt else "",
+                "unlock_level": ul.group(1).strip() if ul else "",
+                "unlock_trust": ut.group(1).strip() if ut else "",
+                "cost1": _parse_materials(c1.group(1) if c1 else ""),
+                "cost2": _parse_materials(c2.group(1) if c2 else ""),
+                "cost3": _parse_materials(c3.group(1) if c3 else ""),
+            }
+        )
+
+    return {"name": op_name, "masteries": masteries, "mod_materials": mod_materials}

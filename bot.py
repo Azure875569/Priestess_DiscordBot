@@ -4,7 +4,7 @@ import discord
 import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
-from scraper import get_operator_data, get_skill_data, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
+from scraper import get_operator_data, get_skill_data, get_material_data, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -26,6 +26,40 @@ def _fi(value: str, limit: int = 10) -> bool:
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
+
+
+def _fmt_mat(items: list[tuple[str, str]]) -> str:
+    """將材料列表格式化為易讀字串。"""
+    return "、".join(f"{n}×{q}" for n, q in items) if items else "暫無資料"
+
+
+class MaterialView(discord.ui.View):
+    def __init__(self, pages: list[tuple[str, discord.Embed]]):
+        super().__init__(timeout=180)
+        self.pages = pages
+        self.current = 0
+        self._build()
+
+    def _build(self) -> None:
+        self.clear_items()
+        for i, (label, _) in enumerate(self.pages):
+            style = discord.ButtonStyle.primary if i == self.current else discord.ButtonStyle.secondary
+            btn = discord.ui.Button(label=label, style=style, row=0)
+            btn.callback = self._make_cb(i)
+            self.add_item(btn)
+        del_btn = discord.ui.Button(label="🗑️", style=discord.ButtonStyle.danger, row=1)
+        del_btn.callback = self._delete
+        self.add_item(del_btn)
+
+    def _make_cb(self, index: int):
+        async def cb(interaction: discord.Interaction):
+            self.current = index
+            self._build()
+            await interaction.response.edit_message(embed=self.pages[index][1], view=self)
+        return cb
+
+    async def _delete(self, interaction: discord.Interaction):
+        await interaction.message.delete()
 
 
 class SkillView(discord.ui.View):
@@ -361,6 +395,74 @@ async def operator_skills(interaction: discord.Interaction, 幹員名稱: str):
 
         view = SkillView(pages, num_skills=len(data["skills"]))
         await interaction.followup.send(embed=pages[0][1], view=view)
+    except Exception:
+        await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
+
+
+@tree.command(name="幹員素材計算", description="查詢技能專精與模組解鎖所需的素材")
+@app_commands.describe(幹員名稱="輸入幹員名稱，例如：銀灰、能天使")
+@app_commands.autocomplete(幹員名稱=operator_autocomplete)
+async def operator_materials(interaction: discord.Interaction, 幹員名稱: str):
+    await interaction.response.defer(thinking=True)
+    try:
+        data = await asyncio.to_thread(get_material_data, 幹員名稱)
+
+        if not data:
+            await interaction.followup.send(embed=discord.Embed(
+                description=f"❌ 找不到幹員「{幹員名稱}」，請確認名稱是否正確。",
+                color=0xFF0000,
+            ))
+            return
+
+        op = await asyncio.to_thread(get_operator_data, 幹員名稱)
+        color = RARITY_COLORS.get((op or {}).get("rarity", ""), 0x7289DA)
+        name = data["name"]
+        url = f"https://prts.wiki/w/{zhconv.convert(幹員名稱, 'zh-hans')}"
+        pages: list[tuple[str, discord.Embed]] = []
+
+        # ── 技能專精素材頁 ──────────────────────────────────────────
+        em = discord.Embed(title=f"📦 {name}｜技能專精素材", color=color, url=url)
+        if data["masteries"]:
+            for i, s in enumerate(data["masteries"], 1):
+                lines = []
+                for rank, key in [("專精1", "m1"), ("專精2", "m2"), ("專精3", "m3")]:
+                    if s.get(key):
+                        lines.append(f"**{rank}**：{_fmt_mat(s[key])}")
+                if lines:
+                    em.add_field(
+                        name=f"技能{i}：{s['name']}",
+                        value="\n".join(lines),
+                        inline=False,
+                    )
+        else:
+            em.description = "此幹員無技能專精資料"
+        em.set_footer(text="資料來源：PRTS Wiki")
+        pages.append(("技能專精", em))
+
+        # ── 模組解鎖素材頁 ──────────────────────────────────────────
+        em = discord.Embed(title=f"📦 {name}｜模組解鎖素材", color=color, url=url)
+        if data["mod_materials"]:
+            for mod in data["mod_materials"]:
+                header = mod["name"]
+                if mod.get("type_code"):
+                    header += f"（{mod['type_code']}）"
+                cond_parts = []
+                if mod.get("unlock_level"):
+                    cond_parts.append(f"Lv.{mod['unlock_level']}")
+                if mod.get("unlock_trust"):
+                    cond_parts.append(f"信賴 {mod['unlock_trust']}%")
+                cond = "　解鎖：" + "、".join(cond_parts) if cond_parts else ""
+                lines = [cond] if cond else []
+                for lv, key in [("等級1", "cost1"), ("等級2", "cost2"), ("等級3", "cost3")]:
+                    if mod.get(key):
+                        lines.append(f"**{lv}**：{_fmt_mat(mod[key])}")
+                em.add_field(name=header, value="\n".join(lines) or "暫無資料", inline=False)
+        else:
+            em.description = "此幹員暫無專屬模組"
+        em.set_footer(text="資料來源：PRTS Wiki")
+        pages.append(("模組解鎖", em))
+
+        await interaction.followup.send(embed=pages[0][1], view=MaterialView(pages))
     except Exception:
         await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
