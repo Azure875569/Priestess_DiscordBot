@@ -518,7 +518,7 @@ async def draw_wife(interaction: discord.Interaction):
         em = discord.Embed(title=trad_name, color=0xFF69B4)
         if img_url:
             em.set_image(url=img_url)
-        em.set_footer(text="今日份的老婆 💕")
+        em.set_footer(text="今日份的老婆（or 老公？）💕")
         await interaction.followup.send(embed=em)
 
     except Exception:
