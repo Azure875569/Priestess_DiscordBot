@@ -29,20 +29,22 @@ tree = app_commands.CommandTree(client)
 
 
 class SkillView(discord.ui.View):
-    def __init__(self, pages: list[tuple[str, discord.Embed]]):
+    def __init__(self, pages: list[tuple[str, discord.Embed]], num_skills: int = 0):
         super().__init__(timeout=180)
         self.pages = pages
+        self.num_skills = num_skills  # 技能按鈕放 row 0，其餘放 row 1
         self.current = 0
         self._build()
 
     def _build(self) -> None:
         self.clear_items()
         for i, (label, _) in enumerate(self.pages):
+            row = 0 if i < self.num_skills else 1
             style = discord.ButtonStyle.primary if i == self.current else discord.ButtonStyle.secondary
-            btn = discord.ui.Button(label=label, style=style, row=0)
+            btn = discord.ui.Button(label=label, style=style, row=row)
             btn.callback = self._make_cb(i)
             self.add_item(btn)
-        del_btn = discord.ui.Button(label="🗑️", style=discord.ButtonStyle.danger, row=1)
+        del_btn = discord.ui.Button(label="🗑️", style=discord.ButtonStyle.danger, row=2)
         del_btn.callback = self._delete
         self.add_item(del_btn)
 
@@ -357,7 +359,7 @@ async def operator_skills(interaction: discord.Interaction, 幹員名稱: str):
         em.set_footer(text="資料來源：PRTS Wiki")
         pages.append(("模組", em))
 
-        view = SkillView(pages)
+        view = SkillView(pages, num_skills=len(data["skills"]))
         await interaction.followup.send(embed=pages[0][1], view=view)
     except Exception:
         await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
