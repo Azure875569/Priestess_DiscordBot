@@ -486,22 +486,41 @@ async def draw_wife(interaction: discord.Interaction):
             await interaction.response.send_message("❌ 幹員資料尚未載入，請稍後再試。", ephemeral=True)
             return
 
+        name_hans = random.choice(names)
+        # 立即在背景取圖，與動畫同步執行
+        image_task = asyncio.create_task(asyncio.to_thread(get_wife_image, name_hans))
+
+        # 初始訊息
         await interaction.response.send_message(
             f"{interaction.user.mention} 今天的老婆是..."
         )
+        msg = await interaction.original_response()
 
-        name_hans = random.choice(names)
-        # 同步進行 API 取圖與等待 3 秒
-        (trad_name, img_url), _ = await asyncio.gather(
-            asyncio.to_thread(get_wife_image, name_hans),
-            asyncio.sleep(3),
-        )
+        # 抽獎動畫：老虎機滾動效果
+        spin_icons = ["🎰", "🎲", "🃏", "🎯"]
+        for i in range(4):
+            await asyncio.sleep(0.6)
+            shown = [zhconv.convert(random.choice(names), "zh-hant") for _ in range(3)]
+            await msg.edit(content=(
+                f"{interaction.user.mention} 今天的老婆是...\n"
+                f"> {spin_icons[i]}  ｜  **{shown[0]}**  ｜  **{shown[1]}**  ｜  **{shown[2]}**  ｜"
+            ))
 
+        # 最後一幀：命運已定
+        await asyncio.sleep(0.6)
+        await msg.edit(content=(
+            f"{interaction.user.mention} 今天的老婆是...\n"
+            f"> ✨  **命運已定！**  ✨"
+        ))
+
+        # 公布結果
+        trad_name, img_url = await image_task
         em = discord.Embed(title=trad_name, color=0xFF69B4)
         if img_url:
             em.set_image(url=img_url)
         em.set_footer(text="今日份的老婆 💕")
         await interaction.followup.send(embed=em)
+
     except Exception:
         try:
             await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
