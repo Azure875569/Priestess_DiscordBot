@@ -538,3 +538,59 @@ def get_material_data(name: str) -> dict | None:
         )
 
     return {"name": op_name, "masteries": masteries, "mod_materials": mod_materials}
+
+
+def get_lore_data(name: str) -> dict | None:
+    name = zhconv.convert(name, "zh-hans")
+    params = {
+        "action": "parse",
+        "page": name,
+        "prop": "wikitext",
+        "format": "json",
+        "redirects": 1,
+    }
+    try:
+        response = requests.get(
+            f"{BASE_URL}/api.php", params=params, headers=HEADERS, timeout=10
+        )
+        data = response.json()
+    except Exception:
+        return None
+
+    if "error" in data:
+        return None
+
+    wikitext = data.get("parse", {}).get("wikitext", {}).get("*", "")
+    if not wikitext:
+        return None
+
+    op_name = zhconv.convert(
+        _field(wikitext, "干员名", "幹員名") or name, "zh-hant"
+    )
+
+    sections: list[dict] = []
+    for n in range(1, 15):
+        title_m = re.search(rf"\|档案{n}\s*=\s*([^\n|{{}}]+)", wikitext)
+        if not title_m:
+            break
+        title = zhconv.convert(title_m.group(1).strip(), "zh-hant")
+
+        cond_m = re.search(rf"\|档案{n}条件\s*=\s*([^\n|{{}}]+)", wikitext)
+        condition = zhconv.convert(cond_m.group(1).strip(), "zh-hant") if cond_m else ""
+
+        # 多行內容：抓到下一個 |field= 為止
+        content_m = re.search(
+            rf"\|档案{n}文本\s*=\s*(.*?)(?=\n\||\Z)", wikitext, re.DOTALL
+        )
+        content = ""
+        if content_m:
+            raw = content_m.group(1).strip()
+            raw = re.sub(r"<br\s*/?>", "\n", raw, flags=re.IGNORECASE)
+            raw = re.sub(r"<[^>]+>", "", raw)
+            raw = re.sub(r"\[\[(?:[^\|\]]+\|)?([^\]]+)\]\]", r"\1", raw)
+            raw = re.sub(r"\{\{[^{}]*\}\}", "", raw)
+            content = zhconv.convert(raw.strip(), "zh-hant")
+
+        sections.append({"title": title, "condition": condition, "content": content})
+
+    return {"name": op_name, "sections": sections}

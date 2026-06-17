@@ -4,7 +4,7 @@ import discord
 import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
-from scraper import get_operator_data, get_skill_data, get_material_data, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -31,6 +31,42 @@ tree = app_commands.CommandTree(client)
 def _fmt_mat(items: list[tuple[str, str]]) -> str:
     """將材料列表格式化為易讀字串。"""
     return "、".join(f"{n}×{q}" for n, q in items) if items else "暫無資料"
+
+
+class LoreView(discord.ui.View):
+    def __init__(self, pages: list[tuple[str, discord.Embed]]):
+        super().__init__(timeout=180)
+        self.pages = pages
+        self.current = 0
+        self._build()
+
+    def _build(self) -> None:
+        self.clear_items()
+        select = discord.ui.Select(
+            placeholder=f"📖 {self.pages[self.current][0]}",
+            options=[
+                discord.SelectOption(
+                    label=f"{i + 1}. {label}",
+                    value=str(i),
+                    default=(i == self.current),
+                )
+                for i, (label, _) in enumerate(self.pages)
+            ],
+            row=0,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+        del_btn = discord.ui.Button(label="🗑️", style=discord.ButtonStyle.danger, row=1)
+        del_btn.callback = self._delete
+        self.add_item(del_btn)
+
+    async def _on_select(self, interaction: discord.Interaction):
+        self.current = int(interaction.data["values"][0])
+        self._build()
+        await interaction.response.edit_message(embed=self.pages[self.current][1], view=self)
+
+    async def _delete(self, interaction: discord.Interaction):
+        await interaction.message.delete()
 
 
 class MaterialView(discord.ui.View):
@@ -269,38 +305,46 @@ async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
         await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
 
-@tree.command(name="幹員檔案", description="查詢幹員背景故事（檔案一～四）")
+@tree.command(name="幹員檔案", description="查詢幹員基礎檔案、體檢、履歷、診斷等完整背景資料")
 @app_commands.describe(幹員名稱="輸入幹員名稱，例如：銀灰、能天使")
 @app_commands.autocomplete(幹員名稱=operator_autocomplete)
 async def operator_lore(interaction: discord.Interaction, 幹員名稱: str):
     await interaction.response.defer(thinking=True)
     try:
-        data = get_operator_data(幹員名稱)
+        data = await asyncio.to_thread(get_lore_data, 幹員名稱)
 
-        if not data:
+        if not data or not data["sections"]:
             await interaction.followup.send(embed=discord.Embed(
-                description=f"❌ 找不到幹員「{幹員名稱}」的資料。",
+                description=f"❌ 找不到幹員「{幹員名稱}」的檔案資料。",
                 color=0xFF0000,
             ))
             return
 
-        if not any(data.get(f"file{i}") for i in range(1, 5)):
-            await interaction.followup.send(f"「{data.get('name', 幹員名稱)}」目前沒有檔案資料。")
-            return
+        op = await asyncio.to_thread(get_operator_data, 幹員名稱)
+        color = RARITY_COLORS.get((op or {}).get("rarity", ""), 0x7289DA)
+        name = data["name"]
+        url = f"https://prts.wiki/w/{zhconv.convert(幹員名稱, 'zh-hans')}"
 
-        embed = discord.Embed(
-            title=f"📖 {data.get('name', 幹員名稱)}｜幹員檔案",
-            color=RARITY_COLORS.get(data.get("rarity", ""), 0x7289DA),
-            url=f"https://prts.wiki/w/{幹員名稱}",
-        )
-        for i in range(1, 5):
-            content = data.get(f"file{i}", "")
-            if content:
-                if len(content) > 1000:
-                    content = content[:1000] + "…（詳見 PRTS Wiki）"
-                embed.add_field(name=f"檔案{i}", value=content, inline=False)
-        embed.set_footer(text="資料來源：PRTS Wiki")
-        await interaction.followup.send(embed=embed, view=DeleteView())
+        pages: list[tuple[str, discord.Embed]] = []
+        for sec in data["sections"]:
+            content = sec["content"]
+            if len(content) > 4000:
+                content = content[:4000] + "…（詳見 PRTS Wiki）"
+
+            em = discord.Embed(
+                title=f"📖 {name}｜{sec['title']}",
+                description=content or "（暫無內容）",
+                color=color,
+                url=url,
+            )
+            cond = sec.get("condition", "")
+            footer = "資料來源：PRTS Wiki"
+            if cond and cond != "初始開放":
+                footer += f"　🔒 {cond}"
+            em.set_footer(text=footer)
+            pages.append((sec["title"], em))
+
+        await interaction.followup.send(embed=pages[0][1], view=LoreView(pages))
     except Exception:
         await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
