@@ -389,4 +389,62 @@ def get_skill_data(name: str) -> dict | None:
             }
         )
 
-    return {"name": op_name, "skills": skills[:3], "talents": talents, "modules": modules}
+    # ── 後勤技能 ────────────────────────────────────────────────
+    base_skills: list[dict] = []
+    base_blocks = _extract_template_blocks(wikitext, "后勤技能")
+    if base_blocks:
+        block = base_blocks[0]
+        for slot in range(1, 5):
+            for tier in range(1, 4):
+                prefix = f"后勤技能{slot}-{tier}"
+                # 直接用 regex 取簡體名稱（不經 zhconv），供 Cargo 查詢使用
+                m = re.search(rf"\|{re.escape(prefix)}\s*=\s*([^\n|}}]+)", block)
+                if not m:
+                    continue
+                cargo_name = m.group(1).strip()
+                if not cargo_name:
+                    continue
+                # 顯示名稱（若有 显示名 欄位則使用，否則用 cargo_name）
+                dm = re.search(
+                    rf"\|{re.escape(prefix + '显示名')}\s*=\s*([^\n|}}]+)", block
+                )
+                display = dm.group(1).strip() if dm else cargo_name
+                phase = _field(block, f"{prefix}阶段")
+                base_skills.append(
+                    {
+                        "cargo_name": cargo_name,
+                        "name": zhconv.convert(display, "zh-hant"),
+                        "phase": phase,
+                        "room": "",
+                        "desc": "",
+                    }
+                )
+
+    # 批次查詢 Cargo API 取得房間類型與描述（以簡體名查詢）
+    if base_skills:
+        where = " OR ".join(f"skill.name='{s['cargo_name']}'" for s in base_skills)
+        cargo_params = {
+            "action": "cargoquery",
+            "tables": "building_skill2=skill",
+            "where": where,
+            "fields": "name,room,description",
+            "format": "json",
+            "limit": 20,
+        }
+        try:
+            cr = requests.get(
+                f"{BASE_URL}/api.php", params=cargo_params, headers=HEADERS, timeout=10
+            )
+            cargo_map: dict[str, dict] = {
+                item["title"]["name"]: item["title"]
+                for item in cr.json().get("cargoquery", [])
+            }
+            for s in base_skills:
+                info = cargo_map.get(s["cargo_name"], {})
+                s["room"] = zhconv.convert(info.get("room", ""), "zh-hant")
+                raw_desc = re.sub(r"<[^>]+>", "", info.get("description", ""))
+                s["desc"] = zhconv.convert(raw_desc.strip(), "zh-hant")
+        except Exception:
+            pass
+
+    return {"name": op_name, "skills": skills[:3], "talents": talents, "modules": modules, "base_skills": base_skills}

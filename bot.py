@@ -323,6 +323,21 @@ async def operator_skills(interaction: discord.Interaction, 幹員名稱: str):
         em.set_footer(text="資料來源：PRTS Wiki")
         pages.append((f"技能 {i}", em))
 
+    # ── 後勤技能頁 ──────────────────────────────────────────────
+    em = discord.Embed(title=f"🏭 {name}｜後勤技能", color=color, url=url)
+    if data.get("base_skills"):
+        for bs in data["base_skills"]:
+            field_name = bs["name"]
+            if bs.get("room"):
+                field_name = f"[{bs['room']}] {field_name}"
+            if bs.get("phase"):
+                field_name += f"（{bs['phase']}開放）"
+            em.add_field(name=field_name, value=bs["desc"] or "暫無描述", inline=False)
+    else:
+        em.description = "此幹員暫無後勤技能資料"
+    em.set_footer(text="資料來源：PRTS Wiki")
+    pages.append(("後勤技能", em))
+
     # ── 天賦頁 ────────────────────────────────────────────────
     em = discord.Embed(title=f"💫 {name}｜天賦", color=color, url=url)
     for t in data["talents"]:
