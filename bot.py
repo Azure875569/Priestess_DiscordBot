@@ -4,7 +4,7 @@ import discord
 import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -31,6 +31,40 @@ tree = app_commands.CommandTree(client)
 def _fmt_mat(items: list[tuple[str, str]]) -> str:
     """將材料列表格式化為易讀字串。"""
     return "、".join(f"{n}×{q}" for n, q in items) if items else "暫無資料"
+
+
+class SkinView(discord.ui.View):
+    """每頁一套時裝，用左右箭頭切換，超過一套才顯示按鈕。"""
+
+    def __init__(self, embeds: list[discord.Embed]):
+        super().__init__(timeout=180)
+        self.embeds = embeds
+        self.current = 0
+        self._build()
+
+    def _build(self) -> None:
+        self.clear_items()
+        if len(self.embeds) > 1:
+            prev = discord.ui.Button(label="◀", style=discord.ButtonStyle.secondary, row=0)
+            prev.callback = self._prev
+            self.add_item(prev)
+            nxt = discord.ui.Button(label="▶", style=discord.ButtonStyle.secondary, row=0)
+            nxt.callback = self._next
+            self.add_item(nxt)
+        del_btn = discord.ui.Button(label="🗑️", style=discord.ButtonStyle.danger, row=1)
+        del_btn.callback = self._delete
+        self.add_item(del_btn)
+
+    async def _prev(self, interaction: discord.Interaction):
+        self.current = (self.current - 1) % len(self.embeds)
+        await interaction.response.edit_message(embed=self.embeds[self.current], view=self)
+
+    async def _next(self, interaction: discord.Interaction):
+        self.current = (self.current + 1) % len(self.embeds)
+        await interaction.response.edit_message(embed=self.embeds[self.current], view=self)
+
+    async def _delete(self, interaction: discord.Interaction):
+        await interaction.message.delete()
 
 
 class LoreView(discord.ui.View):
@@ -439,6 +473,55 @@ async def operator_skills(interaction: discord.Interaction, 幹員名稱: str):
 
         view = SkillView(pages, num_skills=len(data["skills"]))
         await interaction.followup.send(embed=pages[0][1], view=view)
+    except Exception:
+        await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
+
+
+@tree.command(name="幹員時裝", description="查詢幹員的時裝圖片、品牌、畫師與取得方式")
+@app_commands.describe(幹員名稱="輸入幹員名稱，例如：銀灰、能天使")
+@app_commands.autocomplete(幹員名稱=operator_autocomplete)
+async def operator_skins(interaction: discord.Interaction, 幹員名稱: str):
+    await interaction.response.defer(thinking=True)
+    try:
+        data = await asyncio.to_thread(get_skin_data, 幹員名稱)
+
+        if not data:
+            await interaction.followup.send(embed=discord.Embed(
+                description=f"❌ 找不到幹員「{幹員名稱}」，請確認名稱是否正確。",
+                color=0xFF0000,
+            ))
+            return
+
+        if not data["skins"]:
+            await interaction.followup.send(embed=discord.Embed(
+                title=f"👘 {data['name']}",
+                description="該幹員尚未擁有時裝。",
+                color=0x7289DA,
+            ))
+            return
+
+        op = await asyncio.to_thread(get_operator_data, 幹員名稱)
+        color = RARITY_COLORS.get((op or {}).get("rarity", ""), 0x7289DA)
+        name = data["name"]
+        url = f"https://prts.wiki/w/{zhconv.convert(幹員名稱, 'zh-hans')}"
+        total = len(data["skins"])
+
+        embeds: list[discord.Embed] = []
+        for i, skin in enumerate(data["skins"], 1):
+            em = discord.Embed(
+                title=f"👘 {name}｜{skin['name']}",
+                color=color,
+                url=url,
+            )
+            em.add_field(name="品牌", value=skin["series"] or "—", inline=True)
+            em.add_field(name="畫師", value=skin["artist"] or "—", inline=True)
+            em.add_field(name="價格", value=skin["price"] or "—", inline=True)
+            if skin["image_url"]:
+                em.set_image(url=skin["image_url"])
+            em.set_footer(text=f"時裝 {i}/{total}　資料來源：PRTS Wiki")
+            embeds.append(em)
+
+        await interaction.followup.send(embed=embeds[0], view=SkinView(embeds))
     except Exception:
         await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 

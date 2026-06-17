@@ -594,3 +594,133 @@ def get_lore_data(name: str) -> dict | None:
         sections.append({"title": title, "condition": condition, "content": content})
 
     return {"name": op_name, "sections": sections}
+
+
+def _get_file_url(file_name: str) -> str:
+    try:
+        r = requests.get(
+            f"{BASE_URL}/api.php",
+            params={
+                "action": "query",
+                "titles": f"File:{file_name}",
+                "prop": "imageinfo",
+                "iiprop": "url",
+                "format": "json",
+            },
+            headers=HEADERS,
+            timeout=10,
+        )
+        for page in r.json().get("query", {}).get("pages", {}).values():
+            info = page.get("imageinfo", [])
+            if info:
+                return info[0].get("url", "")
+    except Exception:
+        pass
+    return ""
+
+
+def get_skin_data(name: str) -> dict | None:
+    hans_name = zhconv.convert(name, "zh-hans")
+    params = {
+        "action": "parse",
+        "page": hans_name,
+        "prop": "wikitext",
+        "format": "json",
+        "redirects": 1,
+    }
+    try:
+        response = requests.get(
+            f"{BASE_URL}/api.php", params=params, headers=HEADERS, timeout=10
+        )
+        data = response.json()
+    except Exception:
+        return None
+
+    if "error" in data:
+        return None
+
+    wikitext = data.get("parse", {}).get("wikitext", {}).get("*", "")
+    if not wikitext:
+        return None
+
+    op_name = zhconv.convert(
+        _field(wikitext, "干员名", "幹員名") or hans_name, "zh-hant"
+    )
+
+    # ── 從幹員主頁取得時裝清單 ─────────────────────────────────────
+    outfits: list[tuple[int, str, str]] = []  # (index, name_hans, series_base_hans)
+    for n in range(1, 20):
+        name_m = re.search(rf"\|时装{n}名称\s*=\s*([^\n|{{}}]+)", wikitext)
+        if not name_m:
+            break
+        skin_name = name_m.group(1).strip()
+        series_m = re.search(rf"\|时装{n}系列\s*=\s*([^\n|{{}}]+)", wikitext)
+        series_full = series_m.group(1).strip() if series_m else ""
+        series_base = series_full.split("/")[0].strip()
+        outfits.append((n, skin_name, series_base))
+
+    if not outfits:
+        return {"name": op_name, "skins": []}
+
+    # ── 按系列批次取得 画师/价格 ───────────────────────────────────
+    series_cache: dict[str, dict[str, dict]] = {}
+    for _, _, series_base in outfits:
+        if not series_base or series_base in series_cache:
+            continue
+        try:
+            r = requests.get(
+                f"{BASE_URL}/api.php",
+                params={
+                    "action": "parse",
+                    "page": f"时装回廊/{series_base}",
+                    "prop": "wikitext",
+                    "format": "json",
+                },
+                headers=HEADERS,
+                timeout=10,
+            )
+            series_wt = r.json().get("parse", {}).get("wikitext", {}).get("*", "")
+        except Exception:
+            series_wt = ""
+
+        skin_index: dict[str, dict] = {}
+        for block in _extract_template_blocks(series_wt, "干员时装"):
+            bn_m = re.search(r"\|时装名\s*=\s*([^\n|{}]+)", block)
+            if not bn_m:
+                continue
+            bname = bn_m.group(1).strip()
+            artist_m = re.search(r"\|画师\s*=\s*([^\n|{}]+)", block)
+            route_m  = re.search(r"\|获得途径\s*=\s*([^\n]+)", block)
+            price_m  = re.search(r"\|价格\s*=\s*([^\n|{}]+)", block)
+
+            artist = zhconv.convert(artist_m.group(1).strip(), "zh-hant") if artist_m else ""
+            route_raw = route_m.group(1).strip() if route_m else ""
+            # 清除 wikilink
+            route_clean = re.sub(r"\[\[[^\]]*\|([^\]]+)\]\]", r"\1", route_raw)
+            route_clean = re.sub(r"\[\[([^\]]+)\]\]", r"\1", route_clean).strip()
+
+            if "采购中心" in route_clean and price_m:
+                price = f"{price_m.group(1).strip()} 源石結晶"
+            else:
+                price = "活動、禮包獲得"
+
+            skin_index[bname] = {"artist": artist, "price": price}
+
+        series_cache[series_base] = skin_index
+
+    # ── 組合最終結果並取得圖片 URL ──────────────────────────────────
+    skins: list[dict] = []
+    for skin_n, skin_name_hans, series_base in outfits:
+        info = series_cache.get(series_base, {}).get(skin_name_hans, {})
+        image_url = _get_file_url(f"半身像 {hans_name} skin{skin_n}.png")
+        skins.append(
+            {
+                "name": zhconv.convert(skin_name_hans, "zh-hant"),
+                "series": zhconv.convert(series_base, "zh-hant"),
+                "artist": info.get("artist", ""),
+                "price": info.get("price", ""),
+                "image_url": image_url,
+            }
+        )
+
+    return {"name": op_name, "skins": skins}
