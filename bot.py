@@ -130,6 +130,7 @@ async def operator_info(interaction: discord.Interaction, 幹員名稱: str):
 
     embed = discord.Embed(
         title=f"📋 {data.get('name', 幹員名稱)}",
+        description=data.get("en_name", ""),
         color=color,
         url=f"https://prts.wiki/w/{幹員名稱}",
     )

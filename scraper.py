@@ -196,6 +196,7 @@ def _parse_wikitext(wikitext: str, fallback_name: str) -> dict:
     d: dict[str, str] = {}
 
     d["name"] = _field(wikitext, "干员名", "幹員名") or fallback_name
+    d["en_name"] = _field(wikitext, "干员外文名")
     raw_rarity = _field(wikitext, "稀有度")
     d["rarity"] = str(int(raw_rarity) + 1) if raw_rarity.isdigit() else raw_rarity
     d["job_class"] = _field(wikitext, "职业", "職業")
