@@ -1262,7 +1262,6 @@ TERRA_COUNTRIES: list[dict] = [
     {"name": "汐斯塔",   "en": "Siesta",                "category": "獨立城市", "page": "汐斯塔",            "drive_prefixes": ["汐斯塔"],     "first_image": None},
     # 歷史國家
     {"name": "高盧",     "en": "Gaul",                  "category": "歷史國家", "page": "高卢(明日方舟)",    "drive_prefixes": ["高盧"],       "first_image": None},
-    {"name": "古阿加門王國", "en": "Ancient Agamemnon Kingdom", "category": "歷史國家", "page": "米诺斯(明日方舟)", "drive_prefixes": ["古阿加門", "阿加門"], "first_image": None},
 ]
 
 _drive_image_cache: dict[str, str] = {}   # stem (無 .png) → lh3.googleusercontent URL
