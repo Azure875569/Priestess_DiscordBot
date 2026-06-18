@@ -1264,7 +1264,11 @@ TERRA_COUNTRIES: list[dict] = [
     {"name": "敘拉古",   "en": "Siracusa",              "category": "現存國家", "page": "叙拉古",            "drive_prefixes": ["敘拉古"],     "first_image": None},
     {"name": "米諾斯",   "en": "Minos",                 "category": "現存國家", "page": "米诺斯(明日方舟)",  "drive_prefixes": ["米諾斯"],     "first_image": None},
     {"name": "伊比利亞", "en": "Iberia",                "category": "現存國家", "page": "伊比利亚",          "drive_prefixes": ["伊比利亞"],   "first_image": "伊比利亞"},
-    {"name": "謝拉格",   "en": "Kjerag",                "category": "現存國家", "page": "谢拉格(明日方舟)",  "drive_prefixes": ["謝拉格"],     "first_image": "謝拉格-雪山"},
+    {"name": "謝拉格",   "en": "Kjerag",                "category": "現存國家", "page": "谢拉格(明日方舟)",  "drive_prefixes": ["謝拉格"],     "first_image": "謝拉格-雪山",
+     "hardcoded_images": [
+         "https://lh3.googleusercontent.com/d/130P4gsooxsfA_6aLk4JbDk26TOT6guET",
+         "https://lh3.googleusercontent.com/d/19iACRmOC9EighdQYoc7InZZQMUL4uh0a",
+     ]},
     {"name": "雷姆必拓", "en": "Rim Billiton",          "category": "現存國家", "page": "雷姆必拓",          "drive_prefixes": ["雷姆必拓"],   "first_image": "雷姆必拓"},
     {"name": "阿戈爾",   "en": "Aegir",                 "category": "現存國家", "page": "阿戈尔(明日方舟)",  "drive_prefixes": ["阿戈爾"],     "first_image": None},
     # 獨立城市
