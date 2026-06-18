@@ -855,7 +855,7 @@ def load_real_names() -> dict[str, dict]:
     result: dict[str, dict] = {}
     for codename_hans, real_name, source in rows:
         result[codename_hans] = {
-            "codename": zhconv.convert(codename_hans, "zh-hant"),
+            "codename": zhconv.convert(codename_hans, "zh-hant").replace("嶽", "岳"),
             "real_name": zhconv.convert(real_name, "zh-hant"),
             "source": zhconv.convert(source, "zh-hant"),
             "avatar_url": avatar_urls.get(codename_hans, ""),
@@ -877,7 +877,7 @@ def search_real_names(query: str) -> list[str]:
     query_hans = zhconv.convert(query, "zh-hans")
     data = load_real_names()
     matched = [
-        zhconv.convert(k, "zh-hant")
+        data[k]["codename"]
         for k in data
         if query_hans in k
     ]
