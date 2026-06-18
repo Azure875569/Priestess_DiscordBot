@@ -21,6 +21,8 @@ RANGE_DATA_URL = (
 
 _operator_cache: list[str] = []
 _range_cache: dict = {}
+_file_url_cache: dict[str, str] = {}
+_image_urls_cache: dict[str, dict] = {}
 
 
 def load_operator_names() -> list[str]:
@@ -146,6 +148,8 @@ _ELITE_LABELS: dict[int, list[str]] = {
 
 
 def _get_image_urls(name: str) -> dict:
+    if name in _image_urls_cache:
+        return _image_urls_cache[name]
     titles = "|".join(f"文件:立绘_{name}_{i}.png" for i in range(1, 5))
     params = {
         "action": "query",
@@ -172,12 +176,15 @@ def _get_image_urls(name: str) -> dict:
             urls[int(m.group(1))] = info[0]["url"]
 
     if not urls:
-        return {"images": []}
+        _image_urls_cache[name] = {"images": []}
+        return _image_urls_cache[name]
 
     sorted_urls = [urls[k] for k in sorted(urls.keys())]
     count = len(sorted_urls)
     labels = _ELITE_LABELS.get(count, [f"精{i}" for i in range(count)])
-    return {"images": list(zip(labels, sorted_urls))}
+    result = {"images": list(zip(labels, sorted_urls))}
+    _image_urls_cache[name] = result
+    return result
 
 
 def _clean(text: str) -> str:
@@ -611,6 +618,8 @@ def get_lore_data(name: str) -> dict | None:
 
 
 def _get_file_url(file_name: str) -> str:
+    if file_name in _file_url_cache:
+        return _file_url_cache[file_name]
     try:
         r = requests.get(
             f"{BASE_URL}/api.php",
@@ -627,9 +636,13 @@ def _get_file_url(file_name: str) -> str:
         for page in r.json().get("query", {}).get("pages", {}).values():
             info = page.get("imageinfo", [])
             if info:
-                return info[0].get("url", "")
+                url = info[0].get("url", "")
+                _file_url_cache[file_name] = url
+                return url
     except Exception:
         pass
+    _file_url_cache[file_name] = ""
+    return ""
     return ""
 
 
