@@ -1347,7 +1347,7 @@ def _fetch_terra_country_data(page: str) -> dict:
                     raw = re.sub(r"<br\s*/?>", "\n", str(sibling), flags=re.IGNORECASE)
                     t = re.sub(r"<[^>]+>", "", raw)
                     t = re.sub(r"\[\d+\]", "", t).strip()
-                    if t:
+                    if len(t) >= 20:
                         intro_parts.append(t)
                 sibling = sibling.find_next_sibling()
         data["intro"] = "\n".join(intro_parts[:3])
