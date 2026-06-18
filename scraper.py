@@ -1269,7 +1269,11 @@ TERRA_COUNTRIES: list[dict] = [
          "https://lh3.googleusercontent.com/d/130P4gsooxsfA_6aLk4JbDk26TOT6guET",
          "https://lh3.googleusercontent.com/d/19iACRmOC9EighdQYoc7InZZQMUL4uh0a",
      ]},
-    {"name": "雷姆必拓", "en": "Rim Billiton",          "category": "現存國家", "page": "雷姆必拓",          "drive_prefixes": ["雷姆必拓"],   "first_image": "雷姆必拓"},
+    {"name": "雷姆必拓", "en": "Rim Billiton",          "category": "現存國家", "page": "雷姆必拓",          "drive_prefixes": ["雷姆必拓"],   "first_image": "雷姆必拓",
+     "hardcoded_images": [
+         "https://lh3.googleusercontent.com/d/1skQjR1xJ9Qm8voXwvAXDSEb6C52TCa3T",
+         "https://lh3.googleusercontent.com/d/1fbeZ7OI0JBRwOE4EWASk1k5xy5dppyPy",
+     ]},
     {"name": "阿戈爾",   "en": "Aegir",                 "category": "現存國家", "page": "阿戈尔(明日方舟)",  "drive_prefixes": ["阿戈爾"],     "first_image": None},
     # 獨立城市
     {"name": "汐斯塔",   "en": "Siesta",                "category": "獨立城市", "page": "汐斯塔",            "drive_prefixes": ["汐斯塔"],     "first_image": None},
