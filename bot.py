@@ -800,11 +800,10 @@ async def draw_wife(interaction: discord.Interaction):
             pass
 
 
-async def _extended_wife_result(kind: str, name_hans: str) -> tuple[str, str]:
+def _extended_wife_result(kind: str, name_hans: str) -> tuple[str, str]:
     """背景執行：回傳 (繁體名稱, 圖片URL)，供擴充版抽老婆使用。"""
     if kind == "op":
         return get_wife_image(name_hans)
-    # story char
     char = get_story_char(name_hans)
     if char:
         urls = char.get("image_urls") or []
