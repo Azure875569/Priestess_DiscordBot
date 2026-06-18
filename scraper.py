@@ -1250,7 +1250,12 @@ TERRA_COUNTRIES: list[dict] = [
     {"name": "哥倫比亞", "en": "Columbia",              "category": "現存國家", "page": "哥伦比亚(明日方舟)", "drive_prefixes": ["哥倫比亞"],   "first_image": "哥倫比亞-特里蒙"},
     {"name": "玻利瓦爾", "en": "Bolívar",               "category": "現存國家", "page": "玻利瓦尔",          "drive_prefixes": ["玻利維亞"],   "first_image": None},
     {"name": "萊塔尼亞", "en": "Leithanien",            "category": "現存國家", "page": "莱塔尼亚",          "drive_prefixes": ["萊塔尼亞"],   "first_image": None},
-    {"name": "薩爾貢",   "en": "Sargon",                "category": "現存國家", "page": "萨尔贡",            "drive_prefixes": ["薩爾貢"],     "first_image": "薩爾貢"},
+    {"name": "薩爾貢",   "en": "Sargon",                "category": "現存國家", "page": "萨尔贡",            "drive_prefixes": ["薩爾貢"],     "first_image": "薩爾貢",
+     "hardcoded_images": [
+         "https://lh3.googleusercontent.com/d/17qsu_flFfz2lhecPql_jko_KAt129flG",
+         "https://lh3.googleusercontent.com/d/1wmSTXbtK7FPCOryPr8vZkhh4wFLgF-cf",
+         "https://lh3.googleusercontent.com/d/1i7xWLRoJ_BvVa4oRXqRGYwfHdrPtviNe",
+     ]},
     {"name": "薩米",     "en": "Sami",                  "category": "現存國家", "page": "萨米(明日方舟)",    "drive_prefixes": ["薩米"],       "first_image": "薩米-冰原"},
     {"name": "敘拉古",   "en": "Siracusa",              "category": "現存國家", "page": "叙拉古",            "drive_prefixes": ["敘拉古"],     "first_image": None},
     {"name": "米諾斯",   "en": "Minos",                 "category": "現存國家", "page": "米诺斯(明日方舟)",  "drive_prefixes": ["米諾斯"],     "first_image": None},
@@ -1358,19 +1363,22 @@ def get_terra_country(query: str) -> dict | None:
         name_hans = zhconv.convert(c["name"], "zh-hans").lower()
         if q == name_hans or q in name_hans or q in c["en"].lower():
             moegirl = _fetch_terra_country_data(c["page"])
-            drive   = load_drive_images()
 
-            imgs: dict[str, str] = {}
-            for prefix in c["drive_prefixes"]:
-                for stem, url in drive.items():
-                    if stem.startswith(prefix):
-                        imgs[stem] = url
-
-            first = c.get("first_image")
-            if first and first in imgs:
-                ordered = [first] + sorted(k for k in imgs if k != first)
+            if c.get("hardcoded_images"):
+                image_urls = c["hardcoded_images"]
             else:
-                ordered = sorted(imgs.keys())
+                drive = load_drive_images()
+                imgs: dict[str, str] = {}
+                for prefix in c["drive_prefixes"]:
+                    for stem, url in drive.items():
+                        if stem.startswith(prefix):
+                            imgs[stem] = url
+                first = c.get("first_image")
+                if first and first in imgs:
+                    ordered = [first] + sorted(k for k in imgs if k != first)
+                else:
+                    ordered = sorted(imgs.keys())
+                image_urls = [imgs[k] for k in ordered]
 
             return {
                 "name":       c["name"],
@@ -1378,7 +1386,7 @@ def get_terra_country(query: str) -> dict | None:
                 "category":   c["category"],
                 "intro":      moegirl["intro"],
                 "emblem_url": moegirl["emblem_url"],
-                "image_urls": [imgs[k] for k in ordered],
+                "image_urls": image_urls,
             }
     return None
 
