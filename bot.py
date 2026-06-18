@@ -750,12 +750,19 @@ async def draw_wife(interaction: discord.Interaction):
                 f"{interaction.user.mention} 今天的老婆是...\n"
                 f"> ✨  **命運已定！**  ✨"
             ))
-            await interaction.followup.send(
-                f"你抽到**我**了喔，**親愛的**～\n我就相信我們之間的連結會跨越時間與空間，"
-                f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
-                f"來吧，我親愛的預言家 {interaction.user.mention}",
-                file=discord.File("priestess.png"),
+            priestess_file = discord.File("priestess.png", filename="priestess.png")
+            em_p = discord.Embed(
+                title="普瑞賽斯",
+                description=(
+                    f"你抽到**我**了喔，**親愛的**～\n我就相信我們之間的連結會跨越時間與空間，"
+                    f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
+                    f"來吧，我親愛的預言家 {interaction.user.mention}"
+                ),
+                color=0xFF69B4,
             )
+            em_p.set_image(url="attachment://priestess.png")
+            em_p.set_footer(text="今日份的老婆（or 老公？）💕")
+            await interaction.followup.send(embed=em_p, file=priestess_file)
             return
 
         name_hans = random.choice(names)
@@ -847,12 +854,19 @@ async def draw_wife_ex(interaction: discord.Interaction):
                 f"{interaction.user.mention} 今天的老婆是...\n"
                 f"> ✨  **命運已定！**  ✨"
             ))
-            await interaction.followup.send(
-                f"你抽到**我**了喔，**親愛的**～\n我就相信我們之間的連結會跨越時間與空間，"
-                f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
-                f"來吧，我親愛的預言家 {interaction.user.mention}",
-                file=discord.File("priestess.png"),
+            priestess_file = discord.File("priestess.png", filename="priestess.png")
+            em_p = discord.Embed(
+                title="普瑞賽斯",
+                description=(
+                    f"你抽到**我**了喔，**親愛的**～\n我就相信我們之間的連結會跨越時間與空間，"
+                    f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
+                    f"來吧，我親愛的預言家 {interaction.user.mention}"
+                ),
+                color=0xFF69B4,
             )
+            em_p.set_image(url="attachment://priestess.png")
+            em_p.set_footer(text="今日份的老婆（or 老公？）💕")
+            await interaction.followup.send(embed=em_p, file=priestess_file)
             return
 
         kind, name_hans = random.choice(pool)
