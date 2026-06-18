@@ -105,8 +105,8 @@ def render_range(range_id: str) -> str:
 
 
 def search_operator_names(query: str) -> list[str]:
-    query_s = zhconv.convert(query, "zh-hans")
-    return [n for n in load_operator_names() if query_s in n][:25]
+    q = zhconv.convert(query, "zh-hans").lower()
+    return [n for n in load_operator_names() if q in n.lower()][:25]
 
 
 def get_operator_data(name: str) -> dict | None:
@@ -879,12 +879,12 @@ def get_real_name(query: str) -> dict | None:
 
 def search_real_names(query: str) -> list[str]:
     """自動完成：回傳符合查詢的代號列表（繁體，最多25筆）。"""
-    query_hans = zhconv.convert(query, "zh-hans")
+    q = zhconv.convert(query, "zh-hans").lower()
     data = load_real_names()
     matched = [
         data[k]["codename"]
         for k in data
-        if query_hans in k
+        if q in k.lower()
     ]
     return matched[:25]
 
@@ -1204,17 +1204,17 @@ def _load_is_relics(is_name_hans: str) -> list[dict]:
 def search_is_relic_names(is_name_hans: str, query: str) -> list[str]:
     """自動完成：回傳符合查詢的收藏品名稱（繁體），最多 25 筆。"""
     relics = _load_is_relics(is_name_hans)
-    query_hans = zhconv.convert(query, "zh-hans")
-    matched = [r["name_trad"] for r in relics if query_hans in r["name"] or query_hans in r["name_trad"]]
+    q = zhconv.convert(query, "zh-hans").lower()
+    matched = [r["name_trad"] for r in relics if q in r["name"].lower() or q in r["name_trad"].lower()]
     return matched[:25]
 
 
 def get_is_relic(is_name_hans: str, relic_query: str) -> dict | None:
     """依名稱（繁簡均可）查詢收藏品資料。"""
     relics = _load_is_relics(is_name_hans)
-    query_hans = zhconv.convert(relic_query, "zh-hans")
+    q = zhconv.convert(relic_query, "zh-hans").lower()
     for r in relics:
-        if query_hans == r["name"] or query_hans in r["name"]:
+        if q == r["name"].lower() or q in r["name"].lower():
             return r
     return None
 
