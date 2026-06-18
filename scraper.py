@@ -1249,7 +1249,10 @@ TERRA_COUNTRIES: list[dict] = [
     {"name": "東國",     "en": "Higashi",               "category": "現存國家", "page": "东(明日方舟)",      "drive_prefixes": ["東國"],               "first_image": None},
     {"name": "哥倫比亞", "en": "Columbia",              "category": "現存國家", "page": "哥伦比亚(明日方舟)", "drive_prefixes": ["哥倫比亞"],   "first_image": "哥倫比亞-特里蒙"},
     {"name": "玻利瓦爾", "en": "Bolívar",               "category": "現存國家", "page": "玻利瓦尔",          "drive_prefixes": ["玻利維亞"],   "first_image": None},
-    {"name": "萊塔尼亞", "en": "Leithanien",            "category": "現存國家", "page": "莱塔尼亚",          "drive_prefixes": ["萊塔尼亞"],   "first_image": None},
+    {"name": "萊塔尼亞", "en": "Leithanien",            "category": "現存國家", "page": "莱塔尼亚",          "drive_prefixes": ["萊塔尼亞"],   "first_image": None,
+     "hardcoded_images": [
+         "https://lh3.googleusercontent.com/d/19_wGDsODbB2OB-ob_uPdQea6YUT1X7oO",
+     ]},
     {"name": "薩爾貢",   "en": "Sargon",                "category": "現存國家", "page": "萨尔贡",            "drive_prefixes": ["薩爾貢"],     "first_image": "薩爾貢",
      "hardcoded_images": [
          "https://lh3.googleusercontent.com/d/17qsu_flFfz2lhecPql_jko_KAt129flG",
