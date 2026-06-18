@@ -740,6 +740,150 @@ def get_skin_data(name: str) -> dict | None:
     return {"name": op_name, "skins": skins}
 
 
+# ── 角色真名快取 ───────────────────────────────────────────────────
+_real_name_cache: dict[str, dict] = {}  # 簡體代號 → {codename, real_name, source, avatar_url}
+
+
+def _clean_real_name(text: str) -> str:
+    """清理真名欄位的 wikitext 標記，保留可讀文字。"""
+    # 移除 ref 標籤
+    text = re.sub(r"<ref[^/]*/?>.*?</ref>|<ref[^>]*/>", "", text, flags=re.DOTALL)
+    # {{popup|交互=1|可見文字|内容=...}} → 可見文字
+    text = re.sub(
+        r"\{\{popup\|[^|{}]*\|([^|{}]*(?:\{\{[^{}]*\}\}[^|{}]*)*)\|内容=[^{}]*\}\}",
+        lambda m: re.sub(r"<[^>]+>", "", m.group(1)),
+        text,
+    )
+    # {{Color|...|文字}} → 文字
+    text = re.sub(r"\{\{[Cc]olor\|[^|{}]+\|([^{}]+)\}\}", r"\1", text)
+    # {{mdi|arrow-right}} → →
+    text = re.sub(r"\{\{mdi\|arrow-right\}\}", "→", text)
+    # <span ...>文字</span> → 文字
+    text = re.sub(r"<span[^>]*>(.*?)</span>", r"\1", text, flags=re.DOTALL)
+    # <del>文字</del> → ~~文字~~（刪除線）
+    text = re.sub(r"<del>(.*?)</del>", r"~~\1~~", text)
+    # [[link|display]] → display
+    text = re.sub(r"\[\[[^\]|]+\|([^\]]+)\]\]", r"\1", text)
+    # [[link]] → link
+    text = re.sub(r"\[\[([^\]]+)\]\]", r"\1", text)
+    # <br> → 、
+    text = re.sub(r"<br\s*/?>", "、", text, flags=re.IGNORECASE)
+    # 殘餘 HTML 標籤
+    text = re.sub(r"<[^>]+>", "", text)
+    # 斜體 ''...'' → ...
+    text = re.sub(r"''(.*?)''", r"\1", text)
+    # 剩餘 {{ }} 模板
+    text = re.sub(r"\{\{[^{}]*\}\}", "", text)
+    return text.strip()
+
+
+def load_real_names() -> dict[str, dict]:
+    """載入並快取角色真名頁面的所有資料。"""
+    global _real_name_cache
+    if _real_name_cache:
+        return _real_name_cache
+
+    try:
+        r = requests.get(
+            f"{BASE_URL}/api.php",
+            params={
+                "action": "parse",
+                "page": "角色真名",
+                "prop": "wikitext",
+                "format": "json",
+            },
+            headers=HEADERS,
+            timeout=15,
+        )
+        wt = r.json().get("parse", {}).get("wikitext", {}).get("*", "")
+    except Exception:
+        return {}
+
+    # 移除 HTML 注釋（<!--...-->）中的內容
+    wt_clean = re.sub(r"<!--.*?-->", "", wt, flags=re.DOTALL)
+
+    # 第一步：解析所有列，收集代號、真名、出處
+    rows: list[tuple[str, str, str]] = []  # (codename_hans, real_name, source)
+    for line in wt_clean.split("\n"):
+        line = line.strip()
+        if not line.startswith("|{{干员头像|"):
+            continue
+        cells = line.split("||")
+        if len(cells) < 3:
+            continue
+        codename_m = re.search(r"\{\{干员头像\|([^|}]+)", cells[0])
+        if not codename_m:
+            continue
+        codename_hans = codename_m.group(1).strip()
+        real_name = _clean_real_name(cells[2].strip())
+        source = _clean_real_name(cells[3].strip() if len(cells) > 3 else "")
+        rows.append((codename_hans, real_name, source))
+
+    # 第二步：批次查詢頭像 URL（每批最多 50 筆）
+    avatar_urls: dict[str, str] = {}
+    batch_size = 50
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i : i + batch_size]
+        titles = "|".join(f"File:头像_{name}.png" for name, _, _ in batch)
+        try:
+            r = requests.get(
+                f"{BASE_URL}/api.php",
+                params={
+                    "action": "query",
+                    "titles": titles,
+                    "prop": "imageinfo",
+                    "iiprop": "url",
+                    "format": "json",
+                },
+                headers=HEADERS,
+                timeout=15,
+            )
+            for page in r.json().get("query", {}).get("pages", {}).values():
+                if "missing" in page:
+                    continue
+                info = page.get("imageinfo", [])
+                if not info:
+                    continue
+                title = page.get("title", "")
+                name_m = re.search(r"头像_(.+)\.png$", title)
+                if name_m:
+                    avatar_urls[name_m.group(1)] = info[0]["url"]
+        except Exception:
+            pass
+
+    # 第三步：組合結果
+    result: dict[str, dict] = {}
+    for codename_hans, real_name, source in rows:
+        result[codename_hans] = {
+            "codename": zhconv.convert(codename_hans, "zh-hant"),
+            "real_name": zhconv.convert(real_name, "zh-hant"),
+            "source": zhconv.convert(source, "zh-hant"),
+            "avatar_url": avatar_urls.get(codename_hans, ""),
+        }
+
+    _real_name_cache = result
+    return result
+
+
+def get_real_name(query: str) -> dict | None:
+    """依代號（支援繁簡）查詢角色真名資料。"""
+    query_hans = zhconv.convert(query, "zh-hans")
+    data = load_real_names()
+    return data.get(query_hans)
+
+
+def search_real_names(query: str) -> list[str]:
+    """自動完成：回傳符合查詢的代號列表（繁體，最多25筆）。"""
+    query_hans = zhconv.convert(query, "zh-hans")
+    data = load_real_names()
+    matched = [
+        zhconv.convert(k, "zh-hant")
+        for k in data
+        if query_hans in k
+    ]
+    return matched[:25]
+
+
 def _table_rows(text: str) -> list[str]:
     """依照頂層 |- 分割 wiki 表格，跳過嵌套 {| |} 內的 |-。
     depth 從 -1 開始，讓外層 {| 進入 depth=0（即「在外層表格內」）。

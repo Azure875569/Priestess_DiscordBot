@@ -5,7 +5,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -240,6 +240,42 @@ async def operator_autocomplete(
         app_commands.Choice(name=zhconv.convert(name, "zh-hant"), value=name)
         for name in results
     ]
+
+
+async def real_name_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    results = await asyncio.to_thread(search_real_names, current)
+    return [app_commands.Choice(name=name, value=name) for name in results]
+
+
+@tree.command(name="角色真名", description="查詢明日方舟角色的真實姓名與出處")
+@app_commands.describe(角色名稱="輸入角色代號，例如：銀灰、能天使、德克薩斯")
+@app_commands.autocomplete(角色名稱=real_name_autocomplete)
+async def operator_real_name(interaction: discord.Interaction, 角色名稱: str):
+    await interaction.response.defer(thinking=True)
+    try:
+        data = await asyncio.to_thread(get_real_name, 角色名稱)
+        if not data:
+            await interaction.followup.send(embed=discord.Embed(
+                description=f"❌ 找不到「{角色名稱}」的真名資料，或該角色真名未公開。",
+                color=0xFF0000,
+            ))
+            return
+
+        em = discord.Embed(
+            title=data["codename"],
+            color=0x5865F2,
+            url="https://prts.wiki/w/角色真名",
+        )
+        em.add_field(name="真名", value=data["real_name"] or "（未公開）", inline=False)
+        em.add_field(name="出處", value=data["source"] or "—", inline=False)
+        if data["avatar_url"]:
+            em.set_thumbnail(url=data["avatar_url"])
+        em.set_footer(text="資料來源：PRTS Wiki・角色真名")
+        await interaction.followup.send(embed=em, view=DeleteView())
+    except Exception:
+        await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
 
 @tree.command(name="幹員資料", description="查詢明日方舟幹員基本資料")
@@ -701,7 +737,8 @@ async def on_ready():
     print("📡 斜線指令已同步，首次使用可能需要幾分鐘生效")
     asyncio.create_task(asyncio.to_thread(load_operator_names))
     asyncio.create_task(asyncio.to_thread(load_range_data))
-    print("⏳ 正在背景載入幹員清單與範圍資料...")
+    asyncio.create_task(asyncio.to_thread(load_real_names))
+    print("⏳ 正在背景載入幹員清單、範圍資料與角色真名...")
 
 
 client.run(TOKEN)
