@@ -5,7 +5,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -164,6 +164,36 @@ class SkillView(discord.ui.View):
         await interaction.message.delete()
 
 
+class ISInfoView(discord.ui.View):
+    """集成戰略難度/分隊資訊分頁 View。"""
+
+    def __init__(self, embeds: list[discord.Embed]):
+        super().__init__(timeout=180)
+        self.embeds = embeds
+        self.idx = 0
+        self._sync()
+
+    def _sync(self):
+        self.prev_btn.disabled = self.idx == 0
+        self.next_btn.disabled = self.idx >= len(self.embeds) - 1
+
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary, row=0)
+    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.idx -= 1
+        self._sync()
+        await interaction.response.edit_message(embed=self.embeds[self.idx], view=self)
+
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary, row=0)
+    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.idx += 1
+        self._sync()
+        await interaction.response.edit_message(embed=self.embeds[self.idx], view=self)
+
+    @discord.ui.button(label="🗑️", style=discord.ButtonStyle.danger, row=0)
+    async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
+
 class DeleteView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=180)
@@ -278,6 +308,149 @@ async def operator_real_name(interaction: discord.Interaction, 角色名稱: str
         await interaction.followup.send(embed=em, view=DeleteView())
     except Exception:
         await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
+
+
+_IS_HANS_NAMES = list(IS_CONFIGS.keys())
+_RELIC_RARITY_LABEL = {0: "普通", 1: "高級", 2: "精英", 3: "傳說"}
+_RELIC_RARITY_COLOR = {0: 0x888888, 1: 0x6699FF, 2: 0xFFCC00, 3: 0xFF6644}
+
+
+async def is_name_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    current_hans = zhconv.convert(current, "zh-hans")
+    matches = [k for k in _IS_HANS_NAMES if current_hans in k or current_hans in zhconv.convert(k, "zh-hant")]
+    return [
+        app_commands.Choice(name=IS_CONFIGS[k]["trad"], value=k)
+        for k in matches[:25]
+    ]
+
+
+async def is_relic_name_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    is_name_hans = getattr(interaction.namespace, "集成戰略名稱", None) or ""
+    if not is_name_hans or is_name_hans not in IS_CONFIGS:
+        return []
+    results = await asyncio.to_thread(search_is_relic_names, is_name_hans, current)
+    return [app_commands.Choice(name=n, value=n) for n in results]
+
+
+@tree.command(name="集成戰略資訊", description="查詢集成戰略的難度資料、分隊介紹或特定藏品資訊")
+@app_commands.describe(
+    集成戰略名稱="選擇集成戰略，例如：薩卡茲的無終奇語、歲的界園志異",
+    資訊類型="選擇資訊種類",
+    藏品名稱="查詢「藏品資訊」時填入藏品名稱",
+)
+@app_commands.choices(資訊類型=[
+    app_commands.Choice(name="難度資料", value="難度資料"),
+    app_commands.Choice(name="分隊介紹", value="分隊介紹"),
+    app_commands.Choice(name="藏品資訊", value="藏品資訊"),
+])
+@app_commands.autocomplete(集成戰略名稱=is_name_autocomplete, 藏品名稱=is_relic_name_autocomplete)
+async def is_info(
+    interaction: discord.Interaction,
+    集成戰略名稱: str,
+    資訊類型: str,
+    藏品名稱: str = "",
+):
+    await interaction.response.defer(thinking=True)
+    is_hans = 集成戰略名稱
+    cfg = IS_CONFIGS.get(is_hans, {})
+    if not cfg:
+        await interaction.followup.send("❌ 找不到該集成戰略，請透過自動完成選單選取。", ephemeral=True)
+        return
+
+    is_trad = cfg["trad"]
+    is_wiki_url = f"https://prts.wiki/w/{is_hans}"
+
+    # ── 難度資料 ──────────────────────────────────────────────────────
+    if 資訊類型 == "難度資料":
+        if cfg["num"] == 1:
+            await interaction.followup.send("❌ 刻俄柏的灰蕈迷境不提供難度資料。", ephemeral=True)
+            return
+        data = await asyncio.to_thread(get_is_difficulty, is_hans)
+        if not data:
+            await interaction.followup.send("❌ 無法取得難度資料，請稍後再試。", ephemeral=True)
+            return
+
+        # 每頁顯示 7 筆
+        page_size = 7
+        pages = []
+        for i in range(0, len(data), page_size):
+            chunk = data[i : i + page_size]
+            em = discord.Embed(
+                title=f"{is_trad} — 難度資料",
+                color=0x5B8DD9,
+                url=is_wiki_url,
+            )
+            lines = []
+            for d in chunk:
+                lv = f"Lv.{d['level']}" if d["level"] else ""
+                score = f"  `{d['score']}`" if d["score"] else ""
+                lines.append(f"**{zhconv.convert(d['name'], 'zh-hant')}** {lv}{score}")
+                if d["conditions"]:
+                    lines.append(f"> {zhconv.convert(d['conditions'], 'zh-hant')}")
+            em.description = "\n".join(lines)
+            em.set_footer(text=f"第 {i//page_size + 1}/{-(-len(data)//page_size)} 頁｜資料來源：PRTS Wiki")
+            pages.append(em)
+
+        view = ISInfoView(pages) if len(pages) > 1 else DeleteView()
+        await interaction.followup.send(embed=pages[0], view=view)
+
+    # ── 分隊介紹 ──────────────────────────────────────────────────────
+    elif 資訊類型 == "分隊介紹":
+        data = await asyncio.to_thread(get_is_squads, is_hans)
+        if not data:
+            await interaction.followup.send("❌ 無法取得分隊資料，請稍後再試。", ephemeral=True)
+            return
+
+        page_size = 5
+        pages = []
+        for i in range(0, len(data), page_size):
+            chunk = data[i : i + page_size]
+            em = discord.Embed(
+                title=f"{is_trad} — 分隊介紹",
+                color=0x2ECC71,
+                url=is_wiki_url,
+            )
+            for s in chunk:
+                val = s["effect"] or "（無效果說明）"
+                if s["unlock"]:
+                    val += f"\n解鎖：{s['unlock']}"
+                em.add_field(name=s["name"], value=val[:400], inline=False)
+            em.set_footer(text=f"第 {i//page_size + 1}/{-(-len(data)//page_size)} 頁｜資料來源：PRTS Wiki")
+            pages.append(em)
+
+        view = ISInfoView(pages) if len(pages) > 1 else DeleteView()
+        await interaction.followup.send(embed=pages[0], view=view)
+
+    # ── 藏品資訊 ──────────────────────────────────────────────────────
+    elif 資訊類型 == "藏品資訊":
+        if not 藏品名稱:
+            await interaction.followup.send("❌ 請輸入藏品名稱（可使用自動完成搜尋）。", ephemeral=True)
+            return
+        relic = await asyncio.to_thread(get_is_relic, is_hans, 藏品名稱)
+        if not relic:
+            await interaction.followup.send(f"❌ 在「{is_trad}」中找不到藏品「{藏品名稱}」。", ephemeral=True)
+            return
+
+        rarity = relic["rarity"]
+        color = _RELIC_RARITY_COLOR.get(rarity, 0x888888)
+        rarity_label = _RELIC_RARITY_LABEL.get(rarity, "")
+        stars = "★" * (rarity + 1)
+
+        em = discord.Embed(
+            title=relic["name_trad"],
+            description=f"{stars}  {rarity_label}　　售價：{relic['price'] or '—'}",
+            color=color,
+            url=is_wiki_url,
+        )
+        em.add_field(name="效果", value=relic["effect"] or "—", inline=False)
+        if relic["description"]:
+            em.add_field(name="描述", value=relic["description"], inline=False)
+        em.set_footer(text=f"資料來源：PRTS Wiki・{is_trad}")
+        await interaction.followup.send(embed=em, view=DeleteView())
 
 
 @tree.command(name="幹員資料", description="查詢明日方舟幹員基本資料")

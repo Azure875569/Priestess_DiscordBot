@@ -896,7 +896,7 @@ def _table_rows(text: str) -> list[str]:
     rows, current, depth = [], [], -1
     for line in text.split("\n"):
         depth += line.count("{|") - line.count("|}")
-        if depth == 0 and line.strip() == "|-":
+        if depth == 0 and line.strip().startswith("|-"):
             if current:
                 rows.append("\n".join(current))
             current = []
@@ -908,20 +908,315 @@ def _table_rows(text: str) -> list[str]:
 
 
 def _row_cells(row: str) -> list[str]:
-    """從表格行取得各欄位，跳過嵌套表格內的 | 分隔。"""
-    cells, current, depth, in_cell = [], [], 0, False
+    """從表格行取得各欄位，跳過嵌套表格和模板內的 | 分隔。"""
+    cells, current, tbl_depth, tmpl_depth, in_cell = [], [], 0, 0, False
     for line in row.split("\n"):
-        if depth == 0 and line.startswith("|") and not line.startswith("|-"):
+        # 先判斷是否為新 cell（使用「本行前」的深度）
+        if tbl_depth == 0 and tmpl_depth == 0 and line.startswith("|") and not line.startswith("|-"):
             if in_cell:
                 cells.append("\n".join(current))
             current = [line[1:]]
             in_cell = True
         else:
             current.append(line)
-        depth = max(0, depth + line.count("{|") - line.count("|}"))
+        # 更新深度（本行結束後）
+        tbl_depth = max(0, tbl_depth + line.count("{|") - line.count("|}"))
+        tmpl_depth = max(0, tmpl_depth + line.count("{{") - line.count("}}"))
     if current and in_cell:
         cells.append("\n".join(current))
     return cells
+
+
+# ── 集成戰略資料 ─────────────────────────────────────────────────────
+
+IS_CONFIGS: dict[str, dict] = {
+    "刻俄柏的灰蕈迷境": {"num": 1, "relic_page": "刻俄柏的灰蕈迷境/收藏品图鉴", "trad": "刻俄柏的灰蕈迷境"},
+    "傀影与猩红孤钻": {"num": 2, "relic_page": "傀影与猩红孤钻/长生者宝盒", "trad": "傀影與猩紅孤鑽"},
+    "水月与深蓝之树": {"num": 3, "relic_page": "水月与深蓝之树/生物制品陈设", "trad": "水月與深藍之樹"},
+    "探索者的银凇止境": {"num": 4, "relic_page": "探索者的银凇止境/仪式用品索引", "trad": "探索者的銀凇止境"},
+    "萨卡兹的无终奇语": {"num": 5, "relic_page": "萨卡兹的无终奇语/想象实体图鉴", "trad": "薩卡茲的無終奇語"},
+    "岁的界园志异": {"num": 6, "relic_page": "岁的界园志异/珍玩集册", "trad": "歲的界園志異"},
+}
+
+_is_main_wt_cache: dict[str, str] = {}
+_is_relic_cache: dict[str, list[dict]] = {}
+
+
+def _get_is_main_wt(is_name_hans: str) -> str:
+    if is_name_hans in _is_main_wt_cache:
+        return _is_main_wt_cache[is_name_hans]
+    try:
+        r = requests.get(
+            f"{BASE_URL}/api.php",
+            params={"action": "parse", "page": is_name_hans, "prop": "wikitext", "format": "json"},
+            headers=HEADERS, timeout=20,
+        )
+        wt = r.json().get("parse", {}).get("wikitext", {}).get("*", "")
+        _is_main_wt_cache[is_name_hans] = wt
+        return wt
+    except Exception:
+        return ""
+
+
+def _clean_is_text(text: str) -> str:
+    """清理 IS 頁面的 wikitext，保留可讀文字（支援換行）。"""
+    # 移除 cell 前綴 `| style="..." |`（只匹配不含 { } 的前綴，避免誤切模板引數）
+    text = re.sub(r"^(?:[^|{}\n]*\|)(?!\|)", "", text.strip())
+    # 多次迭代清理巢狀模板
+    for _ in range(4):
+        # {{popup|交互=1|可見文字|内容=...}} → 可見文字
+        text = re.sub(
+            r"\{\{popup\|交互=1\|([^|{}]*)\|[^{}]*\}\}",
+            lambda m: re.sub(r"<[^>]+>", "", m.group(1)),
+            text,
+        )
+        # {{popup|可見文字|内容=...}} → 可見文字
+        text = re.sub(
+            r"\{\{popup\|([^|{}]*)\|(?:内容|颜色)[^{}]*\}\}",
+            lambda m: re.sub(r"<[^>]+>", "", m.group(1)),
+            text,
+        )
+        # {{修正|可見|...}} → 可見
+        text = re.sub(r"\{\{修正\|([^|{}]*)\|[^{}]*\}\}", r"\1", text)
+        # {{color|...|text}} / {{Color|...|text}} → text
+        text = re.sub(r"\{\{[Cc]olor\|[^|{}]+\|([^{}]+)\}\}", r"\1", text)
+        # {{Font|original|css=...}} → original
+        text = re.sub(r"\{\{Font\|([^|{}]+)\|[^{}]*\}\}", r"\1", text)
+        # 移除無參數或全簡單模板
+        text = re.sub(r"\{\{[^|{}]{1,40}\}\}", "", text)
+    # [[文件:...|...]] 和 [[File:...|...]] → 空
+    text = re.sub(r"\[\[(?:文件|File|档案):[^\]]*\]\]", "", text)
+    # [[link|display]] → display；[[link]] → link
+    text = re.sub(r"\[\[[^\]|]+\|([^\]]+)\]\]", r"\1", text)
+    text = re.sub(r"\[\[([^\]]+)\]\]", r"\1", text)
+    # 粗體/斜體
+    text = re.sub(r"'{2,3}([^'\n]+)'{2,3}", r"\1", text)
+    # 移除剩餘巢狀模板（平衡括號法）
+    out, depth, i = [], 0, 0
+    while i < len(text):
+        if text[i : i + 2] == "{{":
+            depth += 1; i += 2
+        elif text[i : i + 2] == "}}":
+            if depth > 0: depth -= 1
+            i += 2
+        elif depth == 0:
+            out.append(text[i]); i += 1
+        else:
+            i += 1
+    text = "".join(out)
+    # <br> → \n；只移除英文字母開頭的 HTML 標籤（保留 <遊戲名詞> 這類文字）
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<\s*/?\s*[a-zA-Z][^>]*>", "", text)
+    text = re.sub(r" {2,}", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _extract_table_with_header(section: str, header_key: str) -> str:
+    """在 section 中找包含 header_key 的 wikitable，回傳完整的 {|...|} 字串。"""
+    idx = section.find(header_key)
+    if idx < 0:
+        return ""
+    start = section.rfind("{|", 0, idx)
+    if start < 0:
+        return ""
+    depth, i = 0, start
+    while i < len(section):
+        if section[i : i + 2] == "{|":
+            depth += 1; i += 2
+        elif section[i : i + 2] == "|}":
+            depth -= 1
+            if depth == 0:
+                return section[start : i + 2]
+            i += 2
+        else:
+            i += 1
+    return section[start:]
+
+
+def get_is_difficulty(is_name_hans: str) -> list[dict]:
+    """回傳各難度等級資料：{name, level, conditions, score}。"""
+    cfg = IS_CONFIGS.get(is_name_hans, {})
+    wt = _get_is_main_wt(is_name_hans)
+    if not wt:
+        return []
+
+    if cfg.get("num") == 1:
+        # IS#1：解析 bullet points
+        sec_m = re.search(r"(?:==+ *探索难度.*?==+)(.*?)(?:==)", wt, re.DOTALL)
+        if not sec_m:
+            return []
+        content = sec_m.group(1)
+        results = []
+        for m in re.finditer(r"\*\s*\{\{color\|[^|{}]+\|'''([^']+)'''\}\}\s*([^\n]*)", content):
+            name = m.group(1).strip()
+            desc = _clean_is_text(m.group(2).strip())
+            results.append({"name": name, "level": "", "conditions": desc, "score": ""})
+        return results
+
+    # IS#2-6：找 常規行動 section
+    sec_m = re.search(r"=== 常规行动 ===(.*?)(?====|\Z)", wt, re.DOTALL)
+    if not sec_m:
+        return []
+    content = sec_m.group(1)
+
+    # IS#2 有 tabber，取第一 tab（現行難度）
+    if "<tabber>" in content:
+        content = re.sub(r"</?tabber>", "", content)
+        content = content.split("|-|")[0]
+    content = re.sub(r"<nowiki/>", "", content)
+
+    table = _extract_table_with_header(content, "! 难度")
+    if not table:
+        return []
+
+    results: list[dict] = []
+    for row in _table_rows(table):
+        cells = _row_cells(row)
+        # 難度行至少需要 4 欄：icon / 名稱 / 等級 / 追加條件
+        if len(cells) < 4:
+            continue
+
+        # cell[1] = 難度名稱（取清理後的第一行）
+        name = _clean_is_text(cells[1]).split("\n")[0].strip()
+        if not name or "——" in name:
+            continue
+
+        # cell[2] = 等級
+        level = _clean_is_text(cells[2]).strip()
+        if not re.match(r"^(\d+|N/A)$", level):
+            level = ""
+
+        # cell[3] = 追加條件（只取 <br> 前的第一句）
+        first_part = re.split(r"<br\s*/?>", cells[3], maxsplit=1, flags=re.IGNORECASE)[0]
+        conditions = _clean_is_text(first_part).strip()[:200]
+
+        # cell[4+] = 找得分效率（第一個純 % 值）
+        score = ""
+        for cell in cells[4:]:
+            c = _clean_is_text(cell).strip()
+            if re.match(r"^[±+\-−]?\d+%$", c):
+                score = c
+                break
+
+        results.append({"name": name, "level": level, "conditions": conditions, "score": score})
+
+    return results
+
+
+def get_is_squads(is_name_hans: str) -> list[dict]:
+    """回傳分隊資料：{name, effect, unlock}。"""
+    cfg = IS_CONFIGS.get(is_name_hans, {})
+    wt = _get_is_main_wt(is_name_hans)
+    if not wt:
+        return []
+
+    if cfg.get("num") == 1:
+        sec_m = re.search(r"=== 战术分队 ===(.*?)(?====|\Z)", wt, re.DOTALL)
+    else:
+        sec_m = re.search(r"=== 常规行动 ===(.*?)(?====|\Z)", wt, re.DOTALL)
+    if not sec_m:
+        return []
+    content = sec_m.group(1)
+
+    if cfg.get("num") != 1:
+        idx = content.find("选择分队")
+        if idx < 0:
+            return []
+        content = content[idx:]
+
+    table = _extract_table_with_header(content, "! 分队")
+    if not table:
+        return []
+
+    results: list[dict] = []
+    for row in _table_rows(table):
+        cells = _row_cells(row)
+        if len(cells) < 2:
+            continue
+        # Cell 0：圖片 + <br> + 名稱
+        c0 = _clean_is_text(cells[0])
+        parts0 = [p.strip() for p in c0.split("\n") if p.strip()]
+        name = parts0[-1] if parts0 else ""
+        if not name or len(name) < 2:
+            continue
+        # Cell 1：效果 || 解鎖條件（同一行）
+        c1_raw = cells[1]
+        inline = c1_raw.split("||")
+        effect = _clean_is_text(inline[0])
+        unlock = _clean_is_text(inline[1]) if len(inline) > 1 else ""
+        # 若 cells[2] 存在則優先取 unlock
+        if len(cells) >= 3 and not unlock:
+            unlock = _clean_is_text(cells[2])
+
+        trad_name = zhconv.convert(name, "zh-hant")
+        if trad_name and trad_name not in {"分隊", "效果", "解鎖條件"}:
+            results.append({
+                "name": trad_name,
+                "effect": zhconv.convert(effect, "zh-hant")[:400],
+                "unlock": zhconv.convert(unlock, "zh-hant")[:100],
+            })
+
+    return results
+
+
+def _load_is_relics(is_name_hans: str) -> list[dict]:
+    """載入並快取指定 IS 的收藏品資料。"""
+    if is_name_hans in _is_relic_cache:
+        return _is_relic_cache[is_name_hans]
+    cfg = IS_CONFIGS.get(is_name_hans, {})
+    relic_page = cfg.get("relic_page", "")
+    if not relic_page:
+        return []
+    try:
+        r = requests.get(
+            f"{BASE_URL}/api.php",
+            params={"action": "parse", "page": relic_page, "prop": "wikitext", "format": "json"},
+            headers=HEADERS, timeout=20,
+        )
+        wt = r.json().get("parse", {}).get("wikitext", {}).get("*", "")
+    except Exception:
+        return []
+
+    results: list[dict] = []
+    # 只匹配 {{收藏品\n（排除 {{收藏品/...}}）
+    for block in _extract_template_blocks(wt, "收藏品\n"):
+        fields: dict[str, str] = {}
+        for m in re.finditer(r"\|(\w+)\s*=\s*(.*?)(?=\n\||\n\}\}|\Z)", block, re.DOTALL):
+            fields[m.group(1)] = m.group(2).strip()
+        name = fields.get("名称", "")
+        if not name:
+            continue
+        results.append({
+            "id": fields.get("ID", ""),
+            "name": name,
+            "name_trad": zhconv.convert(name, "zh-hant"),
+            "rarity": int(fields.get("稀有度", "0") or "0"),
+            "price": fields.get("售价", ""),
+            "effect": zhconv.convert(_clean_is_text(fields.get("效果", "")), "zh-hant"),
+            "description": zhconv.convert(_clean_is_text(fields.get("描述", "")), "zh-hant"),
+        })
+
+    _is_relic_cache[is_name_hans] = results
+    return results
+
+
+def search_is_relic_names(is_name_hans: str, query: str) -> list[str]:
+    """自動完成：回傳符合查詢的收藏品名稱（繁體），最多 25 筆。"""
+    relics = _load_is_relics(is_name_hans)
+    query_hans = zhconv.convert(query, "zh-hans")
+    matched = [r["name_trad"] for r in relics if query_hans in r["name"] or query_hans in r["name_trad"]]
+    return matched[:25]
+
+
+def get_is_relic(is_name_hans: str, relic_query: str) -> dict | None:
+    """依名稱（繁簡均可）查詢收藏品資料。"""
+    relics = _load_is_relics(is_name_hans)
+    query_hans = zhconv.convert(relic_query, "zh-hans")
+    for r in relics:
+        if query_hans == r["name"] or query_hans in r["name"]:
+            return r
+    return None
 
 
 def get_gacha_pools() -> list[dict]:
