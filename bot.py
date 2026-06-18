@@ -235,8 +235,6 @@ class OperatorView(discord.ui.View):
 async def operator_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
-    if not current:
-        return []
     results = await asyncio.to_thread(search_operator_names, current)
     return [
         app_commands.Choice(name=zhconv.convert(name, "zh-hant"), value=name)
