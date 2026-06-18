@@ -263,9 +263,11 @@ async def operator_real_name(interaction: discord.Interaction, 角色名稱: str
             ))
             return
 
+        category = "羅德島幹員" if data["is_operator"] else "其他角色"
         em = discord.Embed(
             title=data["codename"],
-            color=0x5865F2,
+            description=f"*{category}*",
+            color=0x5865F2 if data["is_operator"] else 0x808080,
             url="https://prts.wiki/w/角色真名",
         )
         em.add_field(name="真名", value=data["real_name"] or "（未公開）", inline=False)

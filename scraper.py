@@ -803,30 +803,34 @@ def load_real_names() -> dict[str, dict]:
     wt_clean = re.sub(r"<!--.*?-->", "", wt, flags=re.DOTALL)
 
     # 第一步：解析所有列，收集代號、真名、出處
-    rows: list[tuple[str, str, str]] = []  # (codename_hans, real_name, source)
+    # row tuple: (codename_hans, real_name, source, is_operator)
+    rows: list[tuple[str, str, str, bool]] = []
+    _avatar_pat = re.compile(r"\{\{(干员头像|敌人头像)\|([^|}]+)")
     for line in wt_clean.split("\n"):
         line = line.strip()
-        if not line.startswith("|{{干员头像|"):
+        if not (line.startswith("|{{干员头像|") or line.startswith("|{{敌人头像|")):
             continue
         cells = line.split("||")
         if len(cells) < 3:
             continue
-        codename_m = re.search(r"\{\{干员头像\|([^|}]+)", cells[0])
-        if not codename_m:
+        m = _avatar_pat.search(cells[0])
+        if not m:
             continue
-        codename_hans = codename_m.group(1).strip()
+        is_operator = m.group(1) == "干员头像"
+        codename_hans = m.group(2).strip()
         real_name = _clean_real_name(cells[2].strip())
         source = _clean_real_name(cells[3].strip() if len(cells) > 3 else "")
-        rows.append((codename_hans, real_name, source))
+        rows.append((codename_hans, real_name, source, is_operator))
 
-    # 第二步：批次查詢頭像 URL（每批最多 50 筆）
+    # 第二步：批次查詢頭像 URL（每批最多 50 筆，幹員/非幹員皆試 头像_{name}.png）
     avatar_urls: dict[str, str] = {}
     batch_size = 50
-    for i in range(0, len(rows), batch_size):
-        batch = rows[i : i + batch_size]
-        titles = "|".join(f"File:头像_{name}.png" for name, _, _ in batch)
+    all_names = [r[0] for r in rows]
+    for i in range(0, len(all_names), batch_size):
+        batch_names = all_names[i : i + batch_size]
+        titles = "|".join(f"File:头像_{name}.png" for name in batch_names)
         try:
-            r = requests.get(
+            resp = requests.get(
                 f"{BASE_URL}/api.php",
                 params={
                     "action": "query",
@@ -838,7 +842,7 @@ def load_real_names() -> dict[str, dict]:
                 headers=HEADERS,
                 timeout=15,
             )
-            for page in r.json().get("query", {}).get("pages", {}).values():
+            for page in resp.json().get("query", {}).get("pages", {}).values():
                 if "missing" in page:
                     continue
                 info = page.get("imageinfo", [])
@@ -853,12 +857,13 @@ def load_real_names() -> dict[str, dict]:
 
     # 第三步：組合結果
     result: dict[str, dict] = {}
-    for codename_hans, real_name, source in rows:
+    for codename_hans, real_name, source, is_operator in rows:
         result[codename_hans] = {
             "codename": zhconv.convert(codename_hans, "zh-hant").replace("嶽", "岳"),
             "real_name": zhconv.convert(real_name, "zh-hant"),
             "source": zhconv.convert(source, "zh-hant"),
             "avatar_url": avatar_urls.get(codename_hans, ""),
+            "is_operator": is_operator,
         }
 
     _real_name_cache = result
