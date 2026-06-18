@@ -814,7 +814,7 @@ async def draw_wife(interaction: discord.Interaction):
                     f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
                     f"來吧，我親愛的預言家 {interaction.user.mention}"
                 ),
-                color=0xFF69B4,
+                color=0xFF0000,
             )
             em_p.set_image(url="attachment://priestess.png")
             em_p.set_footer(text="今日份的老婆（or 老公？）💕")
@@ -918,7 +918,7 @@ async def draw_wife_ex(interaction: discord.Interaction):
                     f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
                     f"來吧，我親愛的預言家 {interaction.user.mention}"
                 ),
-                color=0xFF69B4,
+                color=0xFF0000,
             )
             em_p.set_image(url="attachment://priestess.png")
             em_p.set_footer(text="今日份的老婆（or 老公？）💕")
