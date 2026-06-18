@@ -5,7 +5,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -451,6 +451,57 @@ async def is_info(
             em.add_field(name="描述", value=relic["description"], inline=False)
         em.set_footer(text=f"資料來源：PRTS Wiki・{is_trad}")
         await interaction.followup.send(embed=em, view=DeleteView())
+
+
+async def terra_country_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    results = await asyncio.to_thread(search_terra_countries, current)
+    return [app_commands.Choice(name=n, value=n) for n in results]
+
+
+@tree.command(name="地區資料", description="查詢明日方舟泰拉大陸地區的簡介、國徽與場景圖")
+@app_commands.describe(地區名稱="輸入地區名稱，例如：維多利亞、炎國、卡西米爾")
+@app_commands.autocomplete(地區名稱=terra_country_autocomplete)
+async def terra_country_cmd(interaction: discord.Interaction, 地區名稱: str):
+    await interaction.response.defer(thinking=True)
+    try:
+        data = await asyncio.to_thread(get_terra_country, 地區名稱)
+        if not data:
+            await interaction.followup.send(f"❌ 找不到地區「{地區名稱}」。", ephemeral=True)
+            return
+
+        embeds: list[discord.Embed] = []
+
+        # 第一頁：文字資訊 + 第一張場景圖
+        em = discord.Embed(
+            title=data["name"],
+            description=data["intro"][:1500] or "（暫無簡介資料）",
+            color=0x4A7FA5,
+        )
+        em.add_field(name="英文名", value=data["en"], inline=True)
+        em.add_field(name="分類",   value=data["category"], inline=True)
+        if data["emblem_url"]:
+            em.set_thumbnail(url=data["emblem_url"])
+        if data["image_urls"]:
+            em.set_image(url=data["image_urls"][0])
+        total = len(data["image_urls"])
+        page_info = f"圖片 1/{total} | " if total else ""
+        em.set_footer(text=f"{page_info}資料來源：萌娘百科 | 圖片：Google Drive")
+        embeds.append(em)
+
+        # 後續頁：其餘場景圖
+        for i, img_url in enumerate(data["image_urls"][1:], 2):
+            em_img = discord.Embed(title=data["name"], color=0x4A7FA5)
+            em_img.set_image(url=img_url)
+            em_img.set_footer(text=f"圖片 {i}/{total} | 資料來源：Google Drive")
+            embeds.append(em_img)
+
+        view = ISInfoView(embeds) if len(embeds) > 1 else DeleteView()
+        await interaction.followup.send(embed=embeds[0], view=view)
+
+    except Exception:
+        await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
 
 async def story_char_autocomplete(
@@ -1083,7 +1134,8 @@ async def on_ready():
     asyncio.create_task(asyncio.to_thread(load_range_data))
     asyncio.create_task(asyncio.to_thread(load_real_names))
     asyncio.create_task(asyncio.to_thread(load_story_chars))
-    print("⏳ 正在背景載入幹員清單、範圍資料、角色真名與劇情角色...")
+    asyncio.create_task(asyncio.to_thread(load_drive_images))
+    print("⏳ 正在背景載入幹員清單、範圍資料、角色真名、劇情角色與 Drive 圖片清單...")
 
 
 client.run(TOKEN)

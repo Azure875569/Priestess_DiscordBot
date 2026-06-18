@@ -1234,6 +1234,151 @@ def get_is_relic(is_name_hans: str, relic_query: str) -> dict | None:
 
 _story_char_cache: list[dict] = []
 
+# ── 泰拉地區資料 ─────────────────────────────────────────────────────────
+
+TERRA_COUNTRIES: list[dict] = [
+    # name: 繁體顯示名, en: 英文名, category: 分類
+    # page: 萌娘百科頁面（簡體）, drive_prefixes: Drive 圖片前綴列表
+    # first_image: 指定第一張圖片的 stem（無 .png），None 表示按字母順序
+    # 現存國家
+    {"name": "維多利亞", "en": "Victoria Empire",      "category": "現存國家", "page": "维多利亚(明日方舟)", "drive_prefixes": ["維多利亞"],           "first_image": "維多利亞-倫蒂尼姆"},
+    {"name": "烏薩斯",   "en": "Ursus Empire",         "category": "現存國家", "page": "乌萨斯",            "drive_prefixes": ["烏薩斯"],             "first_image": "烏薩斯-切爾諾伯格"},
+    {"name": "卡西米爾", "en": "Kazimierz",             "category": "現存國家", "page": "卡西米尔",          "drive_prefixes": ["卡西米爾"],           "first_image": "卡西米爾-商業街"},
+    {"name": "拉特蘭",   "en": "Laterano",              "category": "現存國家", "page": "拉特兰",            "drive_prefixes": ["拉特蘭"],             "first_image": "拉特蘭"},
+    {"name": "炎國",     "en": "Yan",                   "category": "現存國家", "page": "炎(明日方舟)",      "drive_prefixes": ["炎國"],               "first_image": "炎國-畫中世界"},
+    {"name": "東國",     "en": "Higashi",               "category": "現存國家", "page": "东(明日方舟)",      "drive_prefixes": ["東國"],               "first_image": None},
+    {"name": "哥倫比亞", "en": "Columbia",              "category": "現存國家", "page": "哥伦比亚(明日方舟)", "drive_prefixes": ["哥倫比亞", "玻利維亞"], "first_image": "哥倫比亞-特里蒙"},
+    {"name": "萊塔尼亞", "en": "Leithanien",            "category": "現存國家", "page": "莱塔尼亚",          "drive_prefixes": ["萊塔尼亞"],           "first_image": None},
+    {"name": "薩爾貢",   "en": "Sargon",                "category": "現存國家", "page": "萨尔贡",            "drive_prefixes": ["薩爾貢"],             "first_image": "薩爾貢"},
+    {"name": "薩米",     "en": "Sami",                  "category": "現存國家", "page": "萨米(明日方舟)",    "drive_prefixes": ["薩米"],               "first_image": "薩米-冰原"},
+    {"name": "敘拉古",   "en": "Siracusa",              "category": "現存國家", "page": "叙拉古",            "drive_prefixes": ["敘拉古"],             "first_image": None},
+    {"name": "米諾斯",   "en": "Minos",                 "category": "現存國家", "page": "米诺斯(明日方舟)",  "drive_prefixes": ["米諾斯"],             "first_image": None},
+    {"name": "伊比利亞", "en": "Iberia",                "category": "現存國家", "page": "伊比利亚",          "drive_prefixes": ["伊比利亞"],           "first_image": "伊比利亞"},
+    {"name": "謝拉格",   "en": "Kjerag",                "category": "現存國家", "page": "谢拉格(明日方舟)",  "drive_prefixes": ["謝拉格"],             "first_image": "謝拉格-雪山"},
+    {"name": "雷姆必拓", "en": "Rim Billiton",          "category": "現存國家", "page": "雷姆必拓",          "drive_prefixes": ["雷姆必拓"],           "first_image": "雷姆必拓"},
+    {"name": "阿戈爾",   "en": "Aegir",                 "category": "現存國家", "page": "阿戈尔(明日方舟)",  "drive_prefixes": ["阿戈爾"],             "first_image": None},
+    # 歷史國家
+    {"name": "古阿加門王國", "en": "Ancient Agamemnon Kingdom", "category": "歷史國家", "page": "米诺斯(明日方舟)", "drive_prefixes": ["古阿加門", "阿加門"], "first_image": None},
+]
+
+_drive_image_cache: dict[str, str] = {}   # stem (無 .png) → lh3.googleusercontent URL
+_terra_data_cache:  dict[str, dict] = {}  # Moegirl page name → {intro, emblem_url}
+
+
+def load_drive_images() -> dict[str, str]:
+    """抓取 Google Drive 資料夾，建立 filename_stem → 直連 URL 映射。"""
+    global _drive_image_cache
+    if _drive_image_cache:
+        return _drive_image_cache
+    try:
+        r = requests.get(
+            "https://drive.google.com/drive/folders/1Vl9mb0XkQp1OBL-n35qEUNxqKBrs2R0f",
+            headers=HEADERS, timeout=20,
+        )
+        pattern = r'aria-label="([^"]+\.png)[^"]*"[^>]*>.*?"(1[A-Za-z0-9_-]{32,33})"'
+        seen: set[str] = set()
+        result: dict[str, str] = {}
+        for name, fid in re.findall(pattern, r.text, re.DOTALL):
+            stem = name.removesuffix(".png")
+            if stem not in seen:
+                result[stem] = f"https://lh3.googleusercontent.com/d/{fid}"
+                seen.add(stem)
+        _drive_image_cache = result
+    except Exception:
+        _drive_image_cache = {}
+    return _drive_image_cache
+
+
+def _fetch_terra_country_data(page: str) -> dict:
+    """抓取萌娘百科地區頁面的簡介與國徽 URL（有快取）。"""
+    if page in _terra_data_cache:
+        return _terra_data_cache[page]
+
+    from urllib.parse import quote as _quote
+    from bs4 import BeautifulSoup
+
+    data: dict = {"intro": "", "emblem_url": ""}
+    try:
+        r = requests.get(
+            f"https://zh.moegirl.org.cn/zh-tw/{_quote(page)}",
+            headers=HEADERS, timeout=15,
+        )
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # 簡介：h2#简介 → 父 div → 往後找 <p>，用 regex 取文字（頁面用 TemplateString）
+        intro_parts: list[str] = []
+        h2 = soup.find("h2", id="简介")
+        if h2:
+            sibling = h2.parent.find_next_sibling()
+            while sibling:
+                if sibling.name == "div" and "mw-heading" in (sibling.get("class") or []):
+                    break
+                if sibling.name == "p":
+                    raw = re.sub(r"<br\s*/?>", "\n", str(sibling), flags=re.IGNORECASE)
+                    t = re.sub(r"<[^>]+>", "", raw).strip()
+                    if t:
+                        intro_parts.append(t)
+                sibling = sibling.find_next_sibling()
+        data["intro"] = "\n".join(intro_parts[:3])
+
+        # 國徽：div.moe-infobox → span.infobox-image → img
+        infobox = soup.find("div", class_="moe-infobox")
+        if infobox:
+            img_span = infobox.find("span", class_="infobox-image")
+            img = img_span.find("img") if img_span else infobox.find("img")
+            if img:
+                src = img.get("src", "")
+                if src.startswith("//"):
+                    src = "https:" + src
+                data["emblem_url"] = src.split("!/")[0]
+    except Exception:
+        pass
+
+    _terra_data_cache[page] = data
+    return data
+
+
+def search_terra_countries(query: str) -> list[str]:
+    """自動完成：回傳符合查詢的地區名稱（最多 25 筆）。"""
+    q = zhconv.convert(query, "zh-hans").lower()
+    return [
+        c["name"] for c in TERRA_COUNTRIES
+        if q in zhconv.convert(c["name"], "zh-hans").lower()
+        or q in c["en"].lower()
+    ][:25]
+
+
+def get_terra_country(query: str) -> dict | None:
+    """依地區名稱（繁簡英均可）查詢地區資料，含簡介、國徽與 Drive 圖片 URL 列表。"""
+    q = zhconv.convert(query, "zh-hans").lower()
+    for c in TERRA_COUNTRIES:
+        name_hans = zhconv.convert(c["name"], "zh-hans").lower()
+        if q == name_hans or q in name_hans or q in c["en"].lower():
+            moegirl = _fetch_terra_country_data(c["page"])
+            drive   = load_drive_images()
+
+            imgs: dict[str, str] = {}
+            for prefix in c["drive_prefixes"]:
+                for stem, url in drive.items():
+                    if stem.startswith(prefix):
+                        imgs[stem] = url
+
+            first = c.get("first_image")
+            if first and first in imgs:
+                ordered = [first] + sorted(k for k in imgs if k != first)
+            else:
+                ordered = sorted(imgs.keys())
+
+            return {
+                "name":       c["name"],
+                "en":         c["en"],
+                "category":   c["category"],
+                "intro":      moegirl["intro"],
+                "emblem_url": moegirl["emblem_url"],
+                "image_urls": [imgs[k] for k in ordered],
+            }
+    return None
+
 
 def _story_char_filename(raw: str) -> str:
     """將 {{剧情角色立绘}} 參數內的原始檔名轉換為 Wiki 檔案名稱。"""
