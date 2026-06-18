@@ -489,11 +489,17 @@ async def terra_country_cmd(interaction: discord.Interaction, 地區名稱: str)
         em.set_footer(text=f"{page_info}資料來源：萌娘百科 | 圖片：Google Drive")
         embeds.append(em)
 
-        # 後續頁：其餘場景圖
+        # 後續頁：其餘場景圖（保留文字內容）
         for i, img_url in enumerate(data["image_urls"][1:], 2):
-            em_img = discord.Embed(title=data["name"], color=0x4A7FA5)
+            em_img = discord.Embed(
+                title=data["name"],
+                description=f"*{data['en']}*\n\n{intro}",
+                color=0x4A7FA5,
+            )
+            if data["emblem_url"]:
+                em_img.set_thumbnail(url=data["emblem_url"])
             em_img.set_image(url=img_url)
-            em_img.set_footer(text=f"圖片 {i}/{total} | 資料來源：Google Drive")
+            em_img.set_footer(text=f"圖片 {i}/{total} | 資料來源：萌娘百科 | 圖片：Google Drive")
             embeds.append(em_img)
 
         view = ISInfoView(embeds) if len(embeds) > 1 else DeleteView()
