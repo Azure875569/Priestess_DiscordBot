@@ -1341,7 +1341,8 @@ def _fetch_terra_country_data(page: str) -> dict:
                     break
                 if sibling.name == "p":
                     raw = re.sub(r"<br\s*/?>", "\n", str(sibling), flags=re.IGNORECASE)
-                    t = re.sub(r"<[^>]+>", "", raw).strip()
+                    t = re.sub(r"<[^>]+>", "", raw)
+                    t = re.sub(r"\[\d+\]", "", t).strip()
                     if t:
                         intro_parts.append(t)
                 sibling = sibling.find_next_sibling()
