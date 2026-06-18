@@ -474,13 +474,12 @@ async def terra_country_cmd(interaction: discord.Interaction, 地區名稱: str)
         embeds: list[discord.Embed] = []
 
         # 第一頁：文字資訊 + 第一張場景圖
+        intro = data["intro"][:1480] or "（暫無簡介資料）"
         em = discord.Embed(
             title=data["name"],
-            description=data["intro"][:1500] or "（暫無簡介資料）",
+            description=f"*{data['en']}*\n\n{intro}",
             color=0x4A7FA5,
         )
-        em.add_field(name="英文名", value=data["en"], inline=True)
-        em.add_field(name="分類",   value=data["category"], inline=True)
         if data["emblem_url"]:
             em.set_thumbnail(url=data["emblem_url"])
         if data["image_urls"]:
