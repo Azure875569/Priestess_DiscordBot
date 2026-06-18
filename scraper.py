@@ -1256,7 +1256,11 @@ TERRA_COUNTRIES: list[dict] = [
          "https://lh3.googleusercontent.com/d/1wmSTXbtK7FPCOryPr8vZkhh4wFLgF-cf",
          "https://lh3.googleusercontent.com/d/1i7xWLRoJ_BvVa4oRXqRGYwfHdrPtviNe",
      ]},
-    {"name": "薩米",     "en": "Sami",                  "category": "現存國家", "page": "萨米(明日方舟)",    "drive_prefixes": ["薩米"],       "first_image": "薩米-冰原"},
+    {"name": "薩米",     "en": "Sami",                  "category": "現存國家", "page": "萨米(明日方舟)",    "drive_prefixes": ["薩米"],       "first_image": "薩米-冰原",
+     "hardcoded_images": [
+         "https://lh3.googleusercontent.com/d/1QRiDNLDgQJf8W7ZXKgabbWINQjlKN7P8",
+         "https://lh3.googleusercontent.com/d/1htrRznwbsJUrTR3smEddluj3KhHeGlvb",
+     ]},
     {"name": "敘拉古",   "en": "Siracusa",              "category": "現存國家", "page": "叙拉古",            "drive_prefixes": ["敘拉古"],     "first_image": None},
     {"name": "米諾斯",   "en": "Minos",                 "category": "現存國家", "page": "米诺斯(明日方舟)",  "drive_prefixes": ["米諾斯"],     "first_image": None},
     {"name": "伊比利亞", "en": "Iberia",                "category": "現存國家", "page": "伊比利亚",          "drive_prefixes": ["伊比利亞"],   "first_image": "伊比利亞"},
