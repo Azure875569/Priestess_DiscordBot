@@ -1250,7 +1250,8 @@ TERRA_COUNTRIES: list[dict] = [
     {"name": "炎國",     "en": "Yan",                   "category": "現存國家", "page": "炎(明日方舟)",      "drive_prefixes": ["炎國"],               "first_image": "炎國-龍門",
      "image_order": ["炎國-龍門", "炎國-畫中世界", "炎國-尚蜀", "炎國-大荒城", "炎國-玉門", "炎國-龍門餐館"]},
     {"name": "東國",     "en": "Higashi",               "category": "現存國家", "page": "东国",      "drive_prefixes": ["東國"],               "first_image": None},
-    {"name": "哥倫比亞", "en": "Columbia",              "category": "現存國家", "page": "哥伦比亚(明日方舟)", "drive_prefixes": ["哥倫比亞"],   "first_image": "哥倫比亞-特里蒙"},
+    {"name": "哥倫比亞", "en": "Columbia",              "category": "現存國家", "page": "哥伦比亚(明日方舟)", "drive_prefixes": ["哥倫比亞"],   "first_image": "哥倫比亞-特里蒙",
+     "image_order": ["哥倫比亞-特里蒙", "哥倫比亞-萊茵生命1", "哥倫比亞-萊茵生命2", "哥倫比亞-冰釀的餐館", "哥倫比亞-咖啡館", "哥倫比亞-酒吧", "哥倫比亞-曼斯菲爾德監獄"]},
     {"name": "玻利瓦爾", "en": "Bolívar",               "category": "現存國家", "page": "玻利瓦尔",          "drive_prefixes": ["玻利維亞"],   "first_image": None},
     {"name": "萊塔尼亞", "en": "Leithanien",            "category": "現存國家", "page": "莱塔尼亚",          "drive_prefixes": ["萊塔尼亞"],   "first_image": None,
      "hardcoded_images": [
