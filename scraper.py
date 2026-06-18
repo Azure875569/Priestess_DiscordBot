@@ -1241,7 +1241,8 @@ TERRA_COUNTRIES: list[dict] = [
     # page: 萌娘百科頁面（簡體）, drive_prefixes: Drive 圖片前綴列表
     # first_image: 指定第一張圖片的 stem（無 .png），None 表示按字母順序
     # 現存國家
-    {"name": "維多利亞", "en": "Victoria Empire",      "category": "現存國家", "page": "维多利亚(明日方舟)", "drive_prefixes": ["維多利亞"],           "first_image": "維多利亞-倫蒂尼姆"},
+    {"name": "維多利亞", "en": "Victoria Empire",      "category": "現存國家", "page": "维多利亚(明日方舟)", "drive_prefixes": ["維多利亞"],           "first_image": "維多利亞-倫蒂尼姆",
+     "image_order": ["維多利亞-倫蒂尼姆", "維多利亞-鄉村", "維多利亞-自救軍", "維多利亞-格拉斯哥幫", "維多利亞-綠意火花", "維多利亞-猩紅劇團"]},
     {"name": "烏薩斯",   "en": "Ursus Empire",         "category": "現存國家", "page": "乌萨斯",            "drive_prefixes": ["烏薩斯"],             "first_image": "烏薩斯-切爾諾伯格"},
     {"name": "卡西米爾", "en": "Kazimierz",             "category": "現存國家", "page": "卡西米尔",          "drive_prefixes": ["卡西米爾"],           "first_image": "卡西米爾-商業街"},
     {"name": "拉特蘭",   "en": "Laterano",              "category": "現存國家", "page": "拉特兰",            "drive_prefixes": ["拉特蘭"],             "first_image": "拉特蘭"},
@@ -1392,11 +1393,15 @@ def get_terra_country(query: str) -> dict | None:
                     for stem, url in drive.items():
                         if stem.startswith(prefix):
                             imgs[stem] = url
-                first = c.get("first_image")
-                if first and first in imgs:
-                    ordered = [first] + sorted(k for k in imgs if k != first)
+                if c.get("image_order"):
+                    ordered = [k for k in c["image_order"] if k in imgs]
+                    ordered += sorted(k for k in imgs if k not in c["image_order"])
                 else:
-                    ordered = sorted(imgs.keys())
+                    first = c.get("first_image")
+                    if first and first in imgs:
+                        ordered = [first] + sorted(k for k in imgs if k != first)
+                    else:
+                        ordered = sorted(imgs.keys())
                 image_urls = [imgs[k] for k in ordered]
 
             return {
