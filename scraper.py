@@ -1249,7 +1249,7 @@ TERRA_COUNTRIES: list[dict] = [
     {"name": "拉特蘭",   "en": "Laterano",              "category": "現存國家", "page": "拉特兰",            "drive_prefixes": ["拉特蘭"],             "first_image": "拉特蘭"},
     {"name": "炎國",     "en": "Yan",                   "category": "現存國家", "page": "炎(明日方舟)",      "drive_prefixes": ["炎國"],               "first_image": "炎國-龍門",
      "image_order": ["炎國-龍門", "炎國-畫中世界", "炎國-尚蜀", "炎國-大荒城", "炎國-玉門", "炎國-龍門餐館"]},
-    {"name": "東國",     "en": "Higashi",               "category": "現存國家", "page": "东(明日方舟)",      "drive_prefixes": ["東國"],               "first_image": None},
+    {"name": "東國",     "en": "Higashi",               "category": "現存國家", "page": "东国",      "drive_prefixes": ["東國"],               "first_image": None},
     {"name": "哥倫比亞", "en": "Columbia",              "category": "現存國家", "page": "哥伦比亚(明日方舟)", "drive_prefixes": ["哥倫比亞"],   "first_image": "哥倫比亞-特里蒙"},
     {"name": "玻利瓦爾", "en": "Bolívar",               "category": "現存國家", "page": "玻利瓦尔",          "drive_prefixes": ["玻利維亞"],   "first_image": None},
     {"name": "萊塔尼亞", "en": "Leithanien",            "category": "現存國家", "page": "莱塔尼亚",          "drive_prefixes": ["萊塔尼亞"],   "first_image": None,
