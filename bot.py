@@ -800,6 +800,99 @@ async def draw_wife(interaction: discord.Interaction):
             pass
 
 
+async def _extended_wife_result(kind: str, name_hans: str) -> tuple[str, str]:
+    """背景執行：回傳 (繁體名稱, 圖片URL)，供擴充版抽老婆使用。"""
+    if kind == "op":
+        return get_wife_image(name_hans)
+    # story char
+    char = get_story_char(name_hans)
+    if char:
+        urls = char.get("image_urls") or []
+        return char["name_trad"], (urls[0] if urls else "")
+    return zhconv.convert(name_hans, "zh-hant"), ""
+
+
+@tree.command(name="抽老婆擴充版", description="從所有幹員與劇情角色中隨機抽取今天的老婆")
+async def draw_wife_ex(interaction: discord.Interaction):
+    try:
+        op_names = get_all_operator_names()
+        story_chars = load_story_chars()
+        if not op_names and not story_chars:
+            await interaction.response.send_message("❌ 資料尚未載入，請稍後再試。", ephemeral=True)
+            return
+
+        # 合併名單（動畫用顯示名稱）
+        all_display = (
+            [zhconv.convert(n, "zh-hant") for n in op_names]
+            + [c["name_trad"] for c in story_chars]
+        )
+        # 合併抽選池
+        pool = [("op", n) for n in op_names] + [("char", c["name_hans"]) for c in story_chars]
+
+        # 5% 機率抽到普瑞賽斯
+        if random.random() < 0.05:
+            await interaction.response.send_message(
+                f"{interaction.user.mention} 今天的老婆是..."
+            )
+            msg = await interaction.original_response()
+            spin_icons = ["🎰", "🎲", "🃏", "🎯"]
+            for i in range(4):
+                await asyncio.sleep(0.6)
+                shown = [random.choice(all_display) for _ in range(3)]
+                await msg.edit(content=(
+                    f"{interaction.user.mention} 今天的老婆是...\n"
+                    f"> {spin_icons[i]}  ｜  **{shown[0]}**  ｜  **{shown[1]}**  ｜  **{shown[2]}**  ｜"
+                ))
+            await asyncio.sleep(0.6)
+            await msg.edit(content=(
+                f"{interaction.user.mention} 今天的老婆是...\n"
+                f"> ✨  **命運已定！**  ✨"
+            ))
+            await interaction.followup.send(
+                f"你抽到我了喔，親愛的～我就相信我們之間的連結會跨越時間與空間，"
+                f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
+                f"來吧，我親愛的預言家 {interaction.user.mention}",
+                file=discord.File("priestess.png"),
+            )
+            return
+
+        kind, name_hans = random.choice(pool)
+        image_task = asyncio.create_task(asyncio.to_thread(_extended_wife_result, kind, name_hans))
+
+        await interaction.response.send_message(
+            f"{interaction.user.mention} 今天的老婆是..."
+        )
+        msg = await interaction.original_response()
+
+        spin_icons = ["🎰", "🎲", "🃏", "🎯"]
+        for i in range(4):
+            await asyncio.sleep(0.6)
+            shown = [random.choice(all_display) for _ in range(3)]
+            await msg.edit(content=(
+                f"{interaction.user.mention} 今天的老婆是...\n"
+                f"> {spin_icons[i]}  ｜  **{shown[0]}**  ｜  **{shown[1]}**  ｜  **{shown[2]}**  ｜"
+            ))
+
+        await asyncio.sleep(0.6)
+        await msg.edit(content=(
+            f"{interaction.user.mention} 今天的老婆是...\n"
+            f"> ✨  **命運已定！**  ✨"
+        ))
+
+        trad_name, img_url = await image_task
+        em = discord.Embed(title=trad_name, color=0xFF69B4)
+        if img_url:
+            em.set_image(url=img_url)
+        em.set_footer(text="今日份的老婆（or 老公？）💕")
+        await interaction.followup.send(embed=em)
+
+    except Exception:
+        try:
+            await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
+        except Exception:
+            pass
+
+
 @tree.command(name="陸服卡池未來視", description="顯示明日方舟陸服限時尋訪一覽（由新至舊）")
 async def gacha_future(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
