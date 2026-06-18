@@ -751,7 +751,7 @@ async def draw_wife(interaction: discord.Interaction):
                 f"> ✨  **命運已定！**  ✨"
             ))
             await interaction.followup.send(
-                f"你抽到我了喔，親愛的～我就相信我們之間的連結會跨越時間與空間，"
+                f"你抽到**我**了喔，**親愛的**～\n我就相信我們之間的連結會跨越時間與空間，"
                 f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
                 f"來吧，我親愛的預言家 {interaction.user.mention}",
                 file=discord.File("priestess.png"),
@@ -849,7 +849,7 @@ async def draw_wife_ex(interaction: discord.Interaction):
                 f"> ✨  **命運已定！**  ✨"
             ))
             await interaction.followup.send(
-                f"你抽到我了喔，親愛的～我就相信我們之間的連結會跨越時間與空間，"
+                f"你抽到**我**了喔，**親愛的**～\n我就相信我們之間的連結會跨越時間與空間，"
                 f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
                 f"來吧，我親愛的預言家 {interaction.user.mention}",
                 file=discord.File("priestess.png"),
