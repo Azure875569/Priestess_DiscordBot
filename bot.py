@@ -731,6 +731,33 @@ async def draw_wife(interaction: discord.Interaction):
             await interaction.response.send_message("❌ 幹員資料尚未載入，請稍後再試。", ephemeral=True)
             return
 
+        # 5% 機率抽到普瑞賽斯
+        if random.random() < 0.05:
+            await interaction.response.send_message(
+                f"{interaction.user.mention} 今天的老婆是..."
+            )
+            msg = await interaction.original_response()
+            spin_icons = ["🎰", "🎲", "🃏", "🎯"]
+            for i in range(4):
+                await asyncio.sleep(0.6)
+                shown = [zhconv.convert(random.choice(names), "zh-hant") for _ in range(3)]
+                await msg.edit(content=(
+                    f"{interaction.user.mention} 今天的老婆是...\n"
+                    f"> {spin_icons[i]}  ｜  **{shown[0]}**  ｜  **{shown[1]}**  ｜  **{shown[2]}**  ｜"
+                ))
+            await asyncio.sleep(0.6)
+            await msg.edit(content=(
+                f"{interaction.user.mention} 今天的老婆是...\n"
+                f"> ✨  **命運已定！**  ✨"
+            ))
+            await interaction.followup.send(
+                f"你抽到我了喔，親愛的～我就相信我們之間的連結會跨越時間與空間，"
+                f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
+                f"來吧，我親愛的預言家 {interaction.user.mention}",
+                file=discord.File("priestess.png"),
+            )
+            return
+
         name_hans = random.choice(names)
         # 立即在背景取圖，與動畫同步執行
         image_task = asyncio.create_task(asyncio.to_thread(get_wife_image, name_hans))
