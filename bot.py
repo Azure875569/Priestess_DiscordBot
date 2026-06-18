@@ -5,7 +5,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -451,6 +451,42 @@ async def is_info(
             em.add_field(name="描述", value=relic["description"], inline=False)
         em.set_footer(text=f"資料來源：PRTS Wiki・{is_trad}")
         await interaction.followup.send(embed=em, view=DeleteView())
+
+
+async def story_char_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    results = await asyncio.to_thread(search_story_chars, current)
+    return [app_commands.Choice(name=n, value=n) for n in results]
+
+
+@tree.command(name="劇情角色", description="查詢明日方舟劇情角色的簡介、出處與立繪")
+@app_commands.describe(角色名稱="輸入劇情角色名稱，例如：博士、塔露拉、Ace")
+@app_commands.autocomplete(角色名稱=story_char_autocomplete)
+async def story_char(interaction: discord.Interaction, 角色名稱: str):
+    await interaction.response.defer(thinking=True)
+    try:
+        data = await asyncio.to_thread(get_story_char, 角色名稱)
+        if not data:
+            await interaction.followup.send(
+                f"❌ 找不到劇情角色「{角色名稱}」。", ephemeral=True
+            )
+            return
+
+        em = discord.Embed(
+            title=data["name_trad"],
+            description=data["intro_trad"][:500] + ("…" if len(data["intro_trad"]) > 500 else ""),
+            color=0x7B8FA1,
+        )
+        if data["source_trad"]:
+            em.add_field(name="出處", value=data["source_trad"][:400], inline=False)
+        urls = data.get("image_urls") or []
+        if urls:
+            em.set_image(url=urls[0])
+        em.set_footer(text="資料來源：PRTS Wiki・劇情角色一覽")
+        await interaction.followup.send(embed=em, view=DeleteView())
+    except Exception:
+        await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
 
 @tree.command(name="幹員資料", description="查詢明日方舟幹員基本資料")
@@ -913,7 +949,8 @@ async def on_ready():
     asyncio.create_task(asyncio.to_thread(load_operator_names))
     asyncio.create_task(asyncio.to_thread(load_range_data))
     asyncio.create_task(asyncio.to_thread(load_real_names))
-    print("⏳ 正在背景載入幹員清單、範圍資料與角色真名...")
+    asyncio.create_task(asyncio.to_thread(load_story_chars))
+    print("⏳ 正在背景載入幹員清單、範圍資料、角色真名與劇情角色...")
 
 
 client.run(TOKEN)
