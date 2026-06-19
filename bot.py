@@ -1,5 +1,6 @@
 import asyncio
 import os
+from typing import Optional
 import discord
 import zhconv
 from discord import app_commands
@@ -777,18 +778,37 @@ async def operator_skills(interaction: discord.Interaction, 幹員名稱: str):
         await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
 
-@tree.command(name="抽老婆", description="隨機抽取今天的老婆幹員")
-async def draw_wife(interaction: discord.Interaction):
+@tree.command(name="抽角色", description="從幹員中隨機抽取角色，可選擇老公或老婆")
+@app_commands.describe(偏好="選擇老公或老婆（不填則從全部幹員中抽取）")
+@app_commands.choices(偏好=[
+    app_commands.Choice(name="老婆", value="老婆"),
+    app_commands.Choice(name="老公", value="老公"),
+])
+async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = None):
     try:
-        names = get_all_operator_names()
-        if not names:
+        all_names = get_all_operator_names()
+        if not all_names:
             await interaction.response.send_message("❌ 幹員資料尚未載入，請稍後再試。", ephemeral=True)
             return
 
-        # 5% 機率抽到普瑞賽斯
-        if random.random() < 0.05:
+        genders = load_operator_genders()
+        if 偏好 == "老婆":
+            names = [n for n in all_names if genders.get(n, "未知") in ("女", "未知")]
+        elif 偏好 == "老公":
+            names = [n for n in all_names if genders.get(n, "未知") in ("男", "未知")]
+        else:
+            names = all_names
+
+        if not names:
+            await interaction.response.send_message("❌ 篩選後無符合角色，請稍後再試。", ephemeral=True)
+            return
+
+        role_label = 偏好 if 偏好 else "角色"
+
+        # 5% 機率抽到普瑞賽斯（限老婆或無偏好）
+        if 偏好 != "老公" and random.random() < 0.05:
             await interaction.response.send_message(
-                f"{interaction.user.mention} 今天的老婆是..."
+                f"{interaction.user.mention} 今天的{role_label}是..."
             )
             msg = await interaction.original_response()
             spin_icons = ["🎰", "🎲", "🃏", "🎯"]
@@ -796,12 +816,12 @@ async def draw_wife(interaction: discord.Interaction):
                 await asyncio.sleep(0.6)
                 shown = [zhconv.convert(random.choice(names), "zh-hant") for _ in range(3)]
                 await msg.edit(content=(
-                    f"{interaction.user.mention} 今天的老婆是...\n"
+                    f"{interaction.user.mention} 今天的{role_label}是...\n"
                     f"> {spin_icons[i]}  ｜  **{shown[0]}**  ｜  **{shown[1]}**  ｜  **{shown[2]}**  ｜"
                 ))
             await asyncio.sleep(0.6)
             await msg.edit(content=(
-                f"{interaction.user.mention} 今天的老婆是...\n"
+                f"{interaction.user.mention} 今天的{role_label}是...\n"
                 f"> ✨  **命運已定！**  ✨"
             ))
             priestess_file = discord.File("priestess.png", filename="priestess.png")
@@ -815,45 +835,40 @@ async def draw_wife(interaction: discord.Interaction):
                 color=0xFF0000,
             )
             em_p.set_image(url="attachment://priestess.png")
-            em_p.set_footer(text="今日份的老婆（or 老公？）💕")
+            em_p.set_footer(text=f"今日份的{role_label}💕")
             await interaction.followup.send(embed=em_p, file=priestess_file)
             return
 
         name_hans = random.choice(names)
-        # 立即在背景取圖，與動畫同步執行
         image_task = asyncio.create_task(asyncio.to_thread(get_wife_image, name_hans))
 
-        # 初始訊息
         await interaction.response.send_message(
-            f"{interaction.user.mention} 今天的老婆是..."
+            f"{interaction.user.mention} 今天的{role_label}是..."
         )
         msg = await interaction.original_response()
 
-        # 抽獎動畫：老虎機滾動效果
         spin_icons = ["🎰", "🎲", "🃏", "🎯"]
         for i in range(4):
             await asyncio.sleep(0.6)
             shown = [zhconv.convert(random.choice(names), "zh-hant") for _ in range(3)]
             await msg.edit(content=(
-                f"{interaction.user.mention} 今天的老婆是...\n"
+                f"{interaction.user.mention} 今天的{role_label}是...\n"
                 f"> {spin_icons[i]}  ｜  **{shown[0]}**  ｜  **{shown[1]}**  ｜  **{shown[2]}**  ｜"
             ))
 
-        # 最後一幀：命運已定
         await asyncio.sleep(0.6)
         await msg.edit(content=(
-            f"{interaction.user.mention} 今天的老婆是...\n"
+            f"{interaction.user.mention} 今天的{role_label}是...\n"
             f"> ✨  **命運已定！**  ✨"
         ))
 
-        # 公布結果
         trad_name, img_url = await image_task
-        sex = load_operator_genders().get(name_hans, "未知")
+        sex = genders.get(name_hans, "未知")
         em = discord.Embed(title=trad_name, color=0xFF69B4)
         em.add_field(name="性別", value=_gender_label(sex), inline=True)
         if img_url:
             em.set_image(url=img_url)
-        em.set_footer(text="今日份的老婆（or 老公？）💕")
+        em.set_footer(text=f"今日份的{role_label}💕")
         await interaction.followup.send(embed=em)
 
     except Exception:
@@ -885,27 +900,47 @@ def _extended_wife_result(kind: str, name_hans: str) -> tuple[str, str, str]:
     return zhconv.convert(name_hans, "zh-hant"), "", "未知"
 
 
-@tree.command(name="抽老婆擴充版", description="從所有幹員與劇情角色中隨機抽取今天的老婆")
-async def draw_wife_ex(interaction: discord.Interaction):
+@tree.command(name="抽角色擴充版", description="從所有幹員與劇情角色中隨機抽取角色，可選擇老公或老婆")
+@app_commands.describe(偏好="選擇老公或老婆（不填則從全部角色中抽取）")
+@app_commands.choices(偏好=[
+    app_commands.Choice(name="老婆", value="老婆"),
+    app_commands.Choice(name="老公", value="老公"),
+])
+async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] = None):
     try:
-        op_names = get_all_operator_names()
-        story_chars = load_story_chars()
-        if not op_names and not story_chars:
+        all_op_names = get_all_operator_names()
+        all_story_chars = load_story_chars()
+        if not all_op_names and not all_story_chars:
             await interaction.response.send_message("❌ 資料尚未載入，請稍後再試。", ephemeral=True)
             return
 
-        # 合併名單（動畫用顯示名稱）
+        genders = load_operator_genders()
+
+        if 偏好 == "老婆":
+            op_names = [n for n in all_op_names if genders.get(n, "未知") in ("女", "未知")]
+            story_chars = [c for c in all_story_chars if c.get("gender", "未知") in ("女", "未知")]
+        elif 偏好 == "老公":
+            op_names = [n for n in all_op_names if genders.get(n, "未知") in ("男", "未知")]
+            story_chars = [c for c in all_story_chars if c.get("gender", "未知") in ("男", "未知")]
+        else:
+            op_names = all_op_names
+            story_chars = all_story_chars
+
+        pool = [("op", n) for n in op_names] + [("char", c["name_hans"]) for c in story_chars]
+        if not pool:
+            await interaction.response.send_message("❌ 篩選後無符合角色，請稍後再試。", ephemeral=True)
+            return
+
         all_display = (
             [zhconv.convert(n, "zh-hant") for n in op_names]
             + [c["name_trad"] for c in story_chars]
         )
-        # 合併抽選池
-        pool = [("op", n) for n in op_names] + [("char", c["name_hans"]) for c in story_chars]
+        role_label = 偏好 if 偏好 else "角色"
 
-        # 5% 機率抽到普瑞賽斯
-        if random.random() < 0.05:
+        # 5% 機率抽到普瑞賽斯（限老婆或無偏好）
+        if 偏好 != "老公" and random.random() < 0.05:
             await interaction.response.send_message(
-                f"{interaction.user.mention} 今天的老婆是..."
+                f"{interaction.user.mention} 今天的{role_label}是..."
             )
             msg = await interaction.original_response()
             spin_icons = ["🎰", "🎲", "🃏", "🎯"]
@@ -913,12 +948,12 @@ async def draw_wife_ex(interaction: discord.Interaction):
                 await asyncio.sleep(0.6)
                 shown = [random.choice(all_display) for _ in range(3)]
                 await msg.edit(content=(
-                    f"{interaction.user.mention} 今天的老婆是...\n"
+                    f"{interaction.user.mention} 今天的{role_label}是...\n"
                     f"> {spin_icons[i]}  ｜  **{shown[0]}**  ｜  **{shown[1]}**  ｜  **{shown[2]}**  ｜"
                 ))
             await asyncio.sleep(0.6)
             await msg.edit(content=(
-                f"{interaction.user.mention} 今天的老婆是...\n"
+                f"{interaction.user.mention} 今天的{role_label}是...\n"
                 f"> ✨  **命運已定！**  ✨"
             ))
             priestess_file = discord.File("priestess.png", filename="priestess.png")
@@ -932,7 +967,7 @@ async def draw_wife_ex(interaction: discord.Interaction):
                 color=0xFF0000,
             )
             em_p.set_image(url="attachment://priestess.png")
-            em_p.set_footer(text="今日份的老婆（or 老公？）💕")
+            em_p.set_footer(text=f"今日份的{role_label}💕")
             await interaction.followup.send(embed=em_p, file=priestess_file)
             return
 
@@ -940,7 +975,7 @@ async def draw_wife_ex(interaction: discord.Interaction):
         image_task = asyncio.create_task(asyncio.to_thread(_extended_wife_result, kind, name_hans))
 
         await interaction.response.send_message(
-            f"{interaction.user.mention} 今天的老婆是..."
+            f"{interaction.user.mention} 今天的{role_label}是..."
         )
         msg = await interaction.original_response()
 
@@ -949,13 +984,13 @@ async def draw_wife_ex(interaction: discord.Interaction):
             await asyncio.sleep(0.6)
             shown = [random.choice(all_display) for _ in range(3)]
             await msg.edit(content=(
-                f"{interaction.user.mention} 今天的老婆是...\n"
+                f"{interaction.user.mention} 今天的{role_label}是...\n"
                 f"> {spin_icons[i]}  ｜  **{shown[0]}**  ｜  **{shown[1]}**  ｜  **{shown[2]}**  ｜"
             ))
 
         await asyncio.sleep(0.6)
         await msg.edit(content=(
-            f"{interaction.user.mention} 今天的老婆是...\n"
+            f"{interaction.user.mention} 今天的{role_label}是...\n"
             f"> ✨  **命運已定！**  ✨"
         ))
 
@@ -964,7 +999,7 @@ async def draw_wife_ex(interaction: discord.Interaction):
         em.add_field(name="性別", value=_gender_label(sex), inline=True)
         if img_url:
             em.set_image(url=img_url)
-        em.set_footer(text="今日份的老婆（or 老公？）💕")
+        em.set_footer(text=f"今日份的{role_label}💕")
         await interaction.followup.send(embed=em)
 
     except Exception:
