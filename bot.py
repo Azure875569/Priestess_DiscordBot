@@ -5,7 +5,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -848,7 +848,9 @@ async def draw_wife(interaction: discord.Interaction):
 
         # 公布結果
         trad_name, img_url = await image_task
+        sex = load_operator_genders().get(name_hans, "未知")
         em = discord.Embed(title=trad_name, color=0xFF69B4)
+        em.add_field(name="性別", value=_gender_label(sex), inline=True)
         if img_url:
             em.set_image(url=img_url)
         em.set_footer(text="今日份的老婆（or 老公？）💕")
@@ -861,15 +863,26 @@ async def draw_wife(interaction: discord.Interaction):
             pass
 
 
-def _extended_wife_result(kind: str, name_hans: str) -> tuple[str, str]:
-    """背景執行：回傳 (繁體名稱, 圖片URL)，供擴充版抽老婆使用。"""
+def _gender_label(sex: str) -> str:
+    """將性別值轉換為顯示標籤。未知或問號則回傳男/女。"""
+    if sex == "男":
+        return "男"
+    if sex == "女":
+        return "女"
+    return "男 / 女"
+
+
+def _extended_wife_result(kind: str, name_hans: str) -> tuple[str, str, str]:
+    """背景執行：回傳 (繁體名稱, 圖片URL, 性別)，供擴充版抽老婆使用。"""
     if kind == "op":
-        return get_wife_image(name_hans)
+        name_trad, img_url = get_wife_image(name_hans)
+        sex = load_operator_genders().get(name_hans, "未知")
+        return name_trad, img_url, sex
     char = get_story_char(name_hans)
     if char:
         urls = char.get("image_urls") or []
-        return char["name_trad"], (urls[0] if urls else "")
-    return zhconv.convert(name_hans, "zh-hant"), ""
+        return char["name_trad"], (urls[0] if urls else ""), char.get("gender", "未知")
+    return zhconv.convert(name_hans, "zh-hant"), "", "未知"
 
 
 @tree.command(name="抽老婆擴充版", description="從所有幹員與劇情角色中隨機抽取今天的老婆")
@@ -946,8 +959,9 @@ async def draw_wife_ex(interaction: discord.Interaction):
             f"> ✨  **命運已定！**  ✨"
         ))
 
-        trad_name, img_url = await image_task
+        trad_name, img_url, sex = await image_task
         em = discord.Embed(title=trad_name, color=0xFF69B4)
+        em.add_field(name="性別", value=_gender_label(sex), inline=True)
         if img_url:
             em.set_image(url=img_url)
         em.set_footer(text="今日份的老婆（or 老公？）💕")
@@ -1138,7 +1152,8 @@ async def on_ready():
     asyncio.create_task(asyncio.to_thread(load_real_names))
     asyncio.create_task(asyncio.to_thread(load_story_chars))
     asyncio.create_task(asyncio.to_thread(load_drive_images))
-    print("⏳ 正在背景載入幹員清單、範圍資料、角色真名、劇情角色與 Drive 圖片清單...")
+    asyncio.create_task(asyncio.to_thread(load_operator_genders))
+    print("⏳ 正在背景載入幹員清單、範圍資料、角色真名、劇情角色、Drive 圖片清單與幹員性別...")
 
 
 client.run(TOKEN)

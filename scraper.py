@@ -1233,6 +1233,28 @@ def get_is_relic(is_name_hans: str, relic_query: str) -> dict | None:
 
 
 _story_char_cache: list[dict] = []
+_operator_gender_cache: dict[str, str] = {}  # name_hans → 男/女/未知
+
+
+def load_operator_genders() -> dict[str, str]:
+    """從幹員一覽 HTML 建立 name_hans → 性別 映射。"""
+    global _operator_gender_cache
+    if _operator_gender_cache:
+        return _operator_gender_cache
+    try:
+        from bs4 import BeautifulSoup as _BS
+        r = requests.get(f"{BASE_URL}/w/干员一览", headers=HEADERS, timeout=15)
+        soup = _BS(r.text, "html.parser")
+        result: dict[str, str] = {}
+        for el in soup.find_all(attrs={"data-sex": True}):
+            name = el.get("data-zh", "").strip()
+            sex  = el.get("data-sex", "").strip()
+            if name:
+                result[name] = sex or "未知"
+        _operator_gender_cache = result
+    except Exception:
+        _operator_gender_cache = {}
+    return _operator_gender_cache
 
 # ── 泰拉地區資料 ─────────────────────────────────────────────────────────
 
@@ -1478,11 +1500,23 @@ def load_story_chars() -> list[dict]:
                 raw = re.sub(r"<br\s*/?>", "\n", str(intro_td), flags=re.IGNORECASE)
                 intro = re.sub(r"<[^>]+>", "", raw).strip()[:800]
 
+        # 基本信息 → 性別
+        gender = "未知"
+        info_th = t.find("th", string=re.compile("基本信息"))
+        if info_th:
+            info_td = info_th.find_next("td")
+            if info_td:
+                info_text = re.sub(r"<[^>]+>", "", str(info_td))
+                gm = re.search(r"性[別别][：:]\s*(男|女|[？?]+)", info_text)
+                if gm:
+                    gender = gm.group(1).strip()
+
         result.append({
             "name_hans": name_hans,
             "name_trad": zhconv.convert(name, "zh-hant"),
             "intro_trad": zhconv.convert(intro, "zh-hant"),
             "source_trad": "",
+            "gender": gender,
             "image_urls": image_urls,
         })
 
