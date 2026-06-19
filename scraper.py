@@ -1419,123 +1419,75 @@ def get_terra_country(query: str) -> dict | None:
     return None
 
 
-def _story_char_filename(raw: str) -> str:
-    """將 {{剧情角色立绘}} 參數內的原始檔名轉換為 Wiki 檔案名稱。"""
-    raw = raw.strip()
-    if raw.lower().endswith(".png"):
-        return raw
-    return f"Avg {raw}.png"
-
-
-def _parse_story_char_name(cell: str) -> str:
-    """從名稱欄位提取純文字名稱。"""
-    cell = cell.strip()
-    m = re.match(r"\[\[[^\]|]+\|([^\]]+)\]\]", cell)
-    if m:
-        return m.group(1).strip()
-    m = re.match(r"\[\[([^\]]+)\]\]", cell)
-    if m:
-        return m.group(1).strip()
-    return re.sub(r"<[^>]+>", "", cell).strip()
-
-
-def _clean_story_text(text: str) -> str:
-    """清理 wikitext 連結與格式標記。"""
-    text = re.sub(r"\[\[[^\]|]+\|([^\]]+)\]\]", r"\1", text)
-    text = re.sub(r"\[\[([^\]]+)\]\]", r"\1", text)
-    text = re.sub(r"'{2,3}", "", text)
-    text = re.sub(r"<[^>]+>", "", text)
-    text = re.sub(r"\{\{[^}]+\}\}", "", text)
-    return text.strip()
-
-
 def load_story_chars() -> list[dict]:
-    """載入劇情角色一覽，回傳角色列表（圖片 URL 懶加載）。"""
+    """載入泰拉大典:角色/其他，只保留有立繪的角色。"""
     global _story_char_cache
     if _story_char_cache:
         return _story_char_cache
 
-    r = requests.get(f"{BASE_URL}/api.php", params={
-        "action": "parse", "page": "剧情角色一览",
-        "prop": "wikitext", "format": "json",
-    }, headers=HEADERS, timeout=20)
-    wt = r.json()["parse"]["wikitext"]["*"]
+    from bs4 import BeautifulSoup as _BS
+
+    r = requests.get(
+        "https://prts.wiki/w/泰拉大典:角色/其他",
+        headers=HEADERS, timeout=20,
+    )
+    soup = _BS(r.text, "html.parser")
 
     result: list[dict] = []
     seen: set[str] = set()
-    SKIP = {"名称/代号", "简介", "出处", "立绘", ""}
 
-    for row in re.split(r"\n\|\-[^\n]*", wt):
-        cells = [line[1:].strip() for line in row.split("\n")
-                 if line.startswith("|") and not line.startswith("|}")]
-        if len(cells) < 4:
+    for t in soup.find_all("table"):
+        name_th = t.find("th", attrs={"colspan": "5"})
+        if not name_th:
+            continue
+        name = name_th.get_text().strip()
+        if not name:
             continue
 
-        name = _parse_story_char_name(cells[0])
-        if name in SKIP:
+        # 只保留有立繪的角色
+        tabber = t.find("div", class_="tabber")
+        if not tabber:
+            continue
+        imgs = tabber.find_all("img")
+        if not imgs:
             continue
 
-        key = zhconv.convert(name, "zh-hans").lower()
+        name_hans = zhconv.convert(name, "zh-hans")
+        key = name_hans.lower()
         if key in seen:
             continue
         seen.add(key)
 
-        img_m = re.search(r"\{\{剧情角色立绘\|([^|}]+)", cells[3])
-        raw_files = []
-        if img_m:
-            for f in img_m.group(1).split(";"):
-                f = f.strip()
-                if f:
-                    raw_files.append(_story_char_filename(f))
+        # 圖片：從 thumb URL 還原全尺寸
+        image_urls: list[str] = []
+        for img in imgs:
+            src = img.get("src", "")
+            full = re.sub(
+                r"(https://media\.prts\.wiki)/thumb(/[^/]+/[^/]+/[^/]+\.png)/.*",
+                r"\1\2", src,
+            )
+            if full and full.startswith("http"):
+                image_urls.append(full)
 
-        intro_raw = _clean_story_text(cells[1])
-        source_raw = _clean_story_text(cells[2])
+        # 角色经历 → intro
+        intro = ""
+        intro_th = t.find("th", string=re.compile("角色经历"))
+        if intro_th:
+            intro_td = intro_th.find_next("td")
+            if intro_td:
+                raw = re.sub(r"<br\s*/?>", "\n", str(intro_td), flags=re.IGNORECASE)
+                intro = re.sub(r"<[^>]+>", "", raw).strip()[:800]
 
         result.append({
-            "name_hans": zhconv.convert(name, "zh-hans"),
+            "name_hans": name_hans,
             "name_trad": zhconv.convert(name, "zh-hant"),
-            "intro_trad": zhconv.convert(intro_raw, "zh-hant"),
-            "source_trad": zhconv.convert(source_raw, "zh-hant"),
-            "raw_files": raw_files,
-            "image_urls": None,
+            "intro_trad": zhconv.convert(intro, "zh-hant"),
+            "source_trad": "",
+            "image_urls": image_urls,
         })
 
     _story_char_cache = result
     return result
-
-
-def _resolve_story_char_images(char: dict) -> list[str]:
-    """懶加載：解析角色圖片 URL（已解析則直接回傳）。"""
-    if char["image_urls"] is not None:
-        return char["image_urls"]
-
-    raw_files = char["raw_files"]
-    if not raw_files:
-        char["image_urls"] = []
-        return []
-
-    titles = "|".join(f"File:{f}" for f in raw_files[:4])
-    url_map: dict[str, str] = {}
-    try:
-        r = requests.get(f"{BASE_URL}/api.php", params={
-            "action": "query", "titles": titles,
-            "prop": "imageinfo", "iiprop": "url", "format": "json",
-        }, headers=HEADERS, timeout=10)
-        for page in r.json()["query"]["pages"].values():
-            info = page.get("imageinfo", [])
-            if info:
-                title_key = (page["title"]
-                             .replace("文件:", "").replace("File:", "")
-                             .replace("_", " ").lower())
-                url_map[title_key] = info[0]["url"]
-    except Exception:
-        pass
-
-    urls = [url_map[f.replace("_", " ").lower()]
-            for f in raw_files[:4]
-            if f.replace("_", " ").lower() in url_map]
-    char["image_urls"] = urls
-    return urls
 
 
 def search_story_chars(query: str) -> list[str]:
@@ -1546,12 +1498,10 @@ def search_story_chars(query: str) -> list[str]:
 
 
 def get_story_char(query: str) -> dict | None:
-    """依名稱查詢劇情角色（繁簡英均可），回傳含圖片 URL 的資料。"""
+    """依名稱查詢劇情角色（繁簡均可），回傳角色資料。"""
     q = zhconv.convert(query, "zh-hans").lower()
-    chars = load_story_chars()
-    for c in chars:
+    for c in load_story_chars():
         if q == c["name_hans"].lower() or q in c["name_hans"].lower():
-            _resolve_story_char_images(c)
             return c
     return None
 
