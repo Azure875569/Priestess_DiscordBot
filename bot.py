@@ -486,7 +486,7 @@ async def terra_country_cmd(interaction: discord.Interaction, 地區名稱: str)
             em.set_image(url=data["image_urls"][0])
         total = len(data["image_urls"])
         page_info = f"圖片 1/{total} | " if total else ""
-        em.set_footer(text=f"{page_info}資料來源：萌娘百科 | 圖片來源：網頁活動-泰拉尋旅")
+        em.set_footer(text=f"{page_info}資料來源：萌娘百科 | 圖片：網頁活動-泰拉尋旅")
         embeds.append(em)
 
         # 後續頁：其餘場景圖（保留文字內容）
@@ -499,7 +499,7 @@ async def terra_country_cmd(interaction: discord.Interaction, 地區名稱: str)
             if data["emblem_url"]:
                 em_img.set_thumbnail(url=data["emblem_url"])
             em_img.set_image(url=img_url)
-            em_img.set_footer(text=f"圖片 {i}/{total} | 資料來源：萌娘百科 | 圖片來源：網頁活動-泰拉尋旅")
+            em_img.set_footer(text=f"圖片 {i}/{total} | 資料來源：萌娘百科 | 圖片：網頁活動-泰拉尋旅")
             embeds.append(em_img)
 
         view = ISInfoView(embeds) if len(embeds) > 1 else DeleteView()
