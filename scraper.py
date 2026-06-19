@@ -1557,6 +1557,8 @@ def load_story_chars() -> list[dict]:
                 tds = tr.find_all("td")
                 if len(tds) < 4:
                     continue
+                if "通用立绘" in tds[3].get_text():
+                    continue
                 name_a = tds[0].find("a")
                 name = name_a.get_text().strip() if name_a else tds[0].get_text().strip()
                 if not name:
