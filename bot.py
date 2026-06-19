@@ -865,7 +865,7 @@ async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = No
         trad_name, img_url = await image_task
         sex = genders.get(name_hans, "未知")
         em = discord.Embed(title=trad_name, color=0xFF69B4)
-        em.add_field(name="性別", value=_gender_label(sex), inline=True)
+
         if img_url:
             em.set_image(url=img_url)
         em.set_footer(text=f"今日份的{role_label}💕")
@@ -996,7 +996,7 @@ async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] =
 
         trad_name, img_url, sex = await image_task
         em = discord.Embed(title=trad_name, color=0xFF69B4)
-        em.add_field(name="性別", value=_gender_label(sex), inline=True)
+
         if img_url:
             em.set_image(url=img_url)
         em.set_footer(text=f"今日份的{role_label}💕")
