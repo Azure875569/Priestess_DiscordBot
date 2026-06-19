@@ -1235,6 +1235,13 @@ def get_is_relic(is_name_hans: str, relic_query: str) -> dict | None:
 _story_char_cache: list[dict] = []
 _operator_gender_cache: dict[str, str] = {}  # name_hans → 男/女/未知
 
+# 指定劇情角色使用的立繪索引（key 為簡體名稱，value 為 image_urls 的索引）
+PORTRAIT_INDEX_OVERRIDES: dict[str, int] = {
+    "弑君者": 1,
+    "梅菲斯特": 2,
+    "浮士德": 2,
+}
+
 # 手動性別覆蓋（優先於自動抓取，key 為簡體名稱）
 GENDER_OVERRIDES: dict[str, str] = {
     # 男

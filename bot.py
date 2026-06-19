@@ -6,7 +6,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -537,7 +537,9 @@ async def story_char(interaction: discord.Interaction, 角色名稱: str):
         )
         urls = data.get("image_urls") or []
         if urls:
-            em.set_image(url=urls[0])
+            name_hans = zhconv.convert(data["name_trad"], "zh-hans")
+            idx = PORTRAIT_INDEX_OVERRIDES.get(name_hans, 0)
+            em.set_image(url=urls[idx] if idx < len(urls) else urls[0])
         em.set_footer(text="資料來源：PRTS Wiki・劇情角色一覽")
         await interaction.followup.send(embed=em, view=DeleteView())
     except Exception:
@@ -896,7 +898,9 @@ def _extended_wife_result(kind: str, name_hans: str) -> tuple[str, str, str]:
     char = get_story_char(name_hans)
     if char:
         urls = char.get("image_urls") or []
-        return char["name_trad"], (urls[0] if urls else ""), char.get("gender", "未知")
+        idx = PORTRAIT_INDEX_OVERRIDES.get(name_hans, 0)
+        img = urls[idx] if urls and idx < len(urls) else (urls[0] if urls else "")
+        return char["name_trad"], img, char.get("gender", "未知")
     return zhconv.convert(name_hans, "zh-hant"), "", "未知"
 
 
