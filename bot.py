@@ -534,8 +534,6 @@ async def story_char(interaction: discord.Interaction, 角色名稱: str):
             description=data["intro_trad"][:500] + ("…" if len(data["intro_trad"]) > 500 else ""),
             color=0x7B8FA1,
         )
-        if data["source_trad"]:
-            em.add_field(name="出處", value=data["source_trad"][:400], inline=False)
         urls = data.get("image_urls") or []
         if urls:
             em.set_image(url=urls[0])
