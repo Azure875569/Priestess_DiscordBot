@@ -1235,6 +1235,11 @@ def get_is_relic(is_name_hans: str, relic_query: str) -> dict | None:
 _story_char_cache: list[dict] = []
 _operator_gender_cache: dict[str, str] = {}  # name_hans → 男/女/未知
 
+# 手動性別覆蓋（優先於自動抓取，key 為簡體名稱）
+GENDER_OVERRIDES: dict[str, str] = {
+    # "普瑞赛斯": "女",
+}
+
 
 def load_operator_genders() -> dict[str, str]:
     """從幹員一覽 HTML 建立 name_hans → 性別 映射。"""
@@ -1251,6 +1256,7 @@ def load_operator_genders() -> dict[str, str]:
             sex  = el.get("data-sex", "").strip()
             if name:
                 result[name] = sex or "未知"
+        result.update(GENDER_OVERRIDES)
         _operator_gender_cache = result
     except Exception:
         _operator_gender_cache = {}
@@ -1510,6 +1516,7 @@ def load_story_chars() -> list[dict]:
                 gm = re.search(r"性[別别][：:]\s*(男|女|[？?]+)", info_text)
                 if gm:
                     gender = gm.group(1).strip()
+        gender = GENDER_OVERRIDES.get(name_hans, gender)
 
         result.append({
             "name_hans": name_hans,
