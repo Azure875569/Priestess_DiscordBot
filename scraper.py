@@ -1281,6 +1281,7 @@ TERRA_COUNTRIES: list[dict] = [
          "https://lh3.googleusercontent.com/d/1skQjR1xJ9Qm8voXwvAXDSEb6C52TCa3T",
          "https://lh3.googleusercontent.com/d/1fbeZ7OI0JBRwOE4EWASk1k5xy5dppyPy",
      ]},
+    {"name": "卡茲戴爾", "en": "Kazdel",                "category": "現存國家", "page": "卡兹戴尔",          "drive_prefixes": ["卡茲戴爾"],   "first_image": None},
     {"name": "阿戈爾",   "en": "Aegir",                 "category": "現存國家", "page": "阿戈尔",  "drive_prefixes": ["阿戈爾"],     "first_image": None,
      "hardcoded_images": [
          "https://lh3.googleusercontent.com/d/1sJmEAl56X0zw2SdH4aKdkiR4DKJctYgw",
