@@ -1466,21 +1466,22 @@ def get_terra_country(query: str) -> dict | None:
 
 
 def load_story_chars() -> list[dict]:
-    """載入泰拉大典:角色/其他，只保留有立繪的角色。"""
+    """載入泰拉大典:角色/其他 + 剧情角色一览，只保留有立繪的角色。"""
     global _story_char_cache
     if _story_char_cache:
         return _story_char_cache
 
     from bs4 import BeautifulSoup as _BS
 
+    result: list[dict] = []
+    seen: set[str] = set()
+
+    # ── 來源一：泰拉大典:角色/其他 ──────────────────────────────────────────
     r = requests.get(
         "https://prts.wiki/w/泰拉大典:角色/其他",
         headers=HEADERS, timeout=20,
     )
     soup = _BS(r.text, "html.parser")
-
-    result: list[dict] = []
-    seen: set[str] = set()
 
     for t in soup.find_all("table"):
         name_th = t.find("th", attrs={"colspan": "5"})
@@ -1490,7 +1491,6 @@ def load_story_chars() -> list[dict]:
         if not name:
             continue
 
-        # 只保留有立繪的角色
         tabber = t.find("div", class_="tabber")
         if not tabber:
             continue
@@ -1504,7 +1504,6 @@ def load_story_chars() -> list[dict]:
             continue
         seen.add(key)
 
-        # 圖片：從 thumb URL 還原全尺寸
         image_urls: list[str] = []
         for img in imgs:
             src = img.get("src", "")
@@ -1515,7 +1514,6 @@ def load_story_chars() -> list[dict]:
             if full and full.startswith("http"):
                 image_urls.append(full)
 
-        # 角色经历 → intro
         intro = ""
         intro_th = t.find("th", string=re.compile("角色经历"))
         if intro_th:
@@ -1524,7 +1522,6 @@ def load_story_chars() -> list[dict]:
                 raw = re.sub(r"<br\s*/?>", "\n", str(intro_td), flags=re.IGNORECASE)
                 intro = re.sub(r"<[^>]+>", "", raw).strip()[:800]
 
-        # 基本信息 → 性別
         gender = "未知"
         info_th = t.find("th", string=re.compile("基本信息"))
         if info_th:
@@ -1544,6 +1541,63 @@ def load_story_chars() -> list[dict]:
             "gender": gender,
             "image_urls": image_urls,
         })
+
+    # ── 來源二：剧情角色一览 ─────────────────────────────────────────────────
+    try:
+        r2 = requests.get(
+            "https://prts.wiki/w/剧情角色一览",
+            headers=HEADERS, timeout=30,
+        )
+        soup2 = _BS(r2.text, "html.parser")
+
+        for t in soup2.find_all("table", class_="wikitable"):
+            if not t.find("th", attrs={"colspan": "4"}):
+                continue
+            for tr in t.find_all("tr"):
+                tds = tr.find_all("td")
+                if len(tds) < 4:
+                    continue
+                name_a = tds[0].find("a")
+                name = name_a.get_text().strip() if name_a else tds[0].get_text().strip()
+                if not name:
+                    continue
+                name_hans = zhconv.convert(name, "zh-hans")
+                key = name_hans.lower()
+                if key in seen:
+                    continue
+                imgs = tds[3].find_all("img")
+                if not imgs:
+                    continue
+                seen.add(key)
+
+                image_urls = []
+                for img in imgs:
+                    src = img.get("src", "")
+                    full = re.sub(
+                        r"(https://media\.prts\.wiki)/thumb(/[^/]+/[^/]+/[^/]+\.png)/.*",
+                        r"\1\2", src,
+                    )
+                    if full and full.startswith("http"):
+                        image_urls.append(full)
+                image_urls = list(dict.fromkeys(image_urls))
+                if not image_urls:
+                    continue
+
+                raw = re.sub(r"<br\s*/?>", "\n", str(tds[1]), flags=re.IGNORECASE)
+                intro = re.sub(r"<[^>]+>", "", raw).strip()[:800]
+                source = tds[2].get_text().strip()
+                gender = GENDER_OVERRIDES.get(name_hans, "未知")
+
+                result.append({
+                    "name_hans": name_hans,
+                    "name_trad": zhconv.convert(name, "zh-hant"),
+                    "intro_trad": zhconv.convert(intro, "zh-hant"),
+                    "source_trad": zhconv.convert(source, "zh-hant"),
+                    "gender": gender,
+                    "image_urls": image_urls,
+                })
+    except Exception:
+        pass
 
     _story_char_cache = result
     return result
