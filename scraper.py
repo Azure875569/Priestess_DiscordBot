@@ -1357,6 +1357,9 @@ GENDER_OVERRIDES: dict[str, str] = {
     "西妮斯卡": "女", "梅里塔": "女", "乞丐": "男",
     "橡杯": "女", "莫菲丝": "女", "卡莱莎": "女",
     '博卓卡斯替，圣卫铳骑': "男", '奎隆，摩诃萨埵权化': "男",
+    '"木裂"埃克提尔尼尔': "男", '"剧团喉舌"': "男",
+    "无名剧作家": "男", "后": "男", "佐恩": "男",
+    "小白": "女", "柳千秋": "女",
 }
 
 
@@ -1662,7 +1665,7 @@ def load_story_chars() -> list[dict]:
                     continue
                 name_a = tds[0].find("a")
                 name = name_a.get_text().strip() if name_a else tds[0].get_text().strip()
-                if not name:
+                if not name or name.strip("？") == "":
                     continue
                 name_hans = zhconv.convert(name, "zh-hans")
                 key = name_hans.lower()
