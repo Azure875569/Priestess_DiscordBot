@@ -1385,6 +1385,7 @@ GENDER_OVERRIDES: dict[str, str] = {
     "屠谕者": "未知", "宝宝": "未知", "科鲁兹": "未知",
     "米奥": "未知", "沃奥": "未知", "神明": "未知",
     '多利，“羊之主”': "男",
+    '？？？': "男",
 }
 
 
@@ -1690,7 +1691,7 @@ def load_story_chars() -> list[dict]:
                     continue
                 name_a = tds[0].find("a")
                 name = name_a.get_text().strip() if name_a else tds[0].get_text().strip()
-                if not name or name.strip("？") == "":
+                if not name:
                     continue
                 name_hans = zhconv.convert(name, "zh-hans")
                 key = name_hans.lower()
