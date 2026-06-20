@@ -23,6 +23,7 @@ _operator_cache: list[str] = []
 _range_cache: dict = {}
 _file_url_cache: dict[str, str] = {}
 _image_urls_cache: dict[str, dict] = {}
+_skin_url_cache: dict[str, list[str]] = {}
 
 
 def load_operator_names() -> list[str]:
@@ -59,13 +60,38 @@ def get_all_operator_names() -> list[str]:
     return _operator_cache
 
 
+def _get_skin_urls(hans_name: str) -> list[str]:
+    """批次查詢幹員所有時裝立繪 URL（skin1~skin15），結果快取。"""
+    if hans_name in _skin_url_cache:
+        return _skin_url_cache[hans_name]
+    titles = "|".join(f"文件:立绘 {hans_name} skin{i}.png" for i in range(1, 16))
+    try:
+        r = requests.get(
+            f"{BASE_URL}/api.php",
+            params={"action": "query", "titles": titles,
+                    "prop": "imageinfo", "iiprop": "url", "format": "json"},
+            headers=HEADERS, timeout=15,
+        )
+        pages = r.json().get("query", {}).get("pages", {}).values()
+        urls = [
+            info[0]["url"]
+            for page in pages
+            if "missing" not in page
+            for info in [page.get("imageinfo", [])]
+            if info and info[0].get("url")
+        ]
+    except Exception:
+        urls = []
+    _skin_url_cache[hans_name] = urls
+    return urls
+
+
 def get_wife_image(hans_name: str) -> tuple[str, str]:
-    """回傳 (繁體名稱, 立繪URL)，優先精二，次選精零。"""
+    """回傳 (繁體名稱, 隨機立繪URL)：精二（或精零）＋所有時裝隨機一項。"""
     trad = zhconv.convert(hans_name, "zh-hant")
-    url = _get_file_url(f"立绘_{hans_name}_2.png")
-    if not url:
-        url = _get_file_url(f"立绘_{hans_name}_1.png")
-    return trad, url
+    elite_url = _get_file_url(f"立绘_{hans_name}_2.png") or _get_file_url(f"立绘_{hans_name}_1.png")
+    portraits = ([elite_url] if elite_url else []) + _get_skin_urls(hans_name)
+    return trad, (random.choice(portraits) if portraits else "")
 
 
 def load_range_data() -> dict:
