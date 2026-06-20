@@ -1652,16 +1652,9 @@ def load_story_chars() -> list[dict]:
                 raw = re.sub(r"<br\s*/?>", "\n", str(intro_td), flags=re.IGNORECASE)
                 intro = re.sub(r"<[^>]+>", "", raw).strip()[:800]
 
-        gender = "未知"
-        info_th = t.find("th", string=re.compile("基本信息"))
-        if info_th:
-            info_td = info_th.find_next("td")
-            if info_td:
-                info_text = re.sub(r"<[^>]+>", "", str(info_td))
-                gm = re.search(r"性[別别][：:]\s*(男|女|[？?]+)", info_text)
-                if gm:
-                    gender = gm.group(1).strip()
-        gender = GENDER_OVERRIDES.get(name_hans, gender)
+        if name_hans not in GENDER_OVERRIDES:
+            continue
+        gender = GENDER_OVERRIDES[name_hans]
 
         result.append({
             "name_hans": name_hans,
@@ -1718,7 +1711,9 @@ def load_story_chars() -> list[dict]:
                 raw = re.sub(r"<br\s*/?>", "\n", str(tds[1]), flags=re.IGNORECASE)
                 intro = re.sub(r"<[^>]+>", "", raw).strip()[:800]
                 source = tds[2].get_text().strip()
-                gender = GENDER_OVERRIDES.get(name_hans, "未知")
+                if name_hans not in GENDER_OVERRIDES:
+                    continue
+                gender = GENDER_OVERRIDES[name_hans]
 
                 result.append({
                     "name_hans": name_hans,
