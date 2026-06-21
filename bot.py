@@ -1,5 +1,6 @@
 import asyncio
 import io
+import json
 import os
 from typing import Optional
 import discord
@@ -1188,6 +1189,54 @@ async def operator_materials(interaction: discord.Interaction, 幹員名稱: str
 _voice_streaks: dict[tuple[int, str], int] = {}
 _voice_bests: dict[tuple[int, str], int] = {}
 
+# 全球排名持久化：{mode_key: {uid_str: [score, display_name]}}
+_RECORDS_FILE = "voice_records.json"
+_global_records: dict[str, dict[str, list]] = {"random": {}, "title": {}}
+
+
+def _load_voice_records() -> None:
+    if not os.path.exists(_RECORDS_FILE):
+        return
+    try:
+        with open(_RECORDS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        for mk in ("random", "title"):
+            for uid_str, val in data.get(mk, {}).items():
+                if isinstance(val, list) and len(val) == 2:
+                    _global_records[mk][uid_str] = val
+    except Exception:
+        pass
+
+
+def _save_voice_records() -> None:
+    try:
+        with open(_RECORDS_FILE, "w", encoding="utf-8") as f:
+            json.dump(_global_records, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def _update_global_record(uid: int, display_name: str, mk: str, score: int) -> None:
+    uid_str = str(uid)
+    if score > _global_records[mk].get(uid_str, [0])[0]:
+        _global_records[mk][uid_str] = [score, display_name]
+        _save_voice_records()
+
+
+def _get_rank_info(uid: int, mk: str) -> tuple[int, int, int, str]:
+    """(global_best_score, user_rank, total_players, global_best_holder_name)"""
+    records = _global_records[mk]
+    uid_str = str(uid)
+    if not records:
+        return 0, 1, 1, ""
+    sorted_scores = sorted((v[0] for v in records.values()), reverse=True)
+    global_best = sorted_scores[0]
+    holder = max(records.items(), key=lambda kv: kv[1][0])
+    global_holder_name = holder[1][1]
+    user_score = records.get(uid_str, [0])[0]
+    rank = sum(1 for s in sorted_scores if s > user_score) + 1
+    return global_best, rank, len(records), global_holder_name
+
 
 def _mode_key(title_only: bool) -> str:
     return "title" if title_only else "random"
@@ -1246,6 +1295,15 @@ class VoiceGuessButton(discord.ui.Button):
             current = _voice_streaks.get((uid, mk), 0)
             _voice_streaks[(uid, mk)] = 0
             best = _voice_bests.get((uid, mk), 0)
+
+            _update_global_record(uid, interaction.user.display_name, mk, best)
+            global_best, rank, total, holder = _get_rank_info(uid, mk)
+
+            holder_text = f"（{holder}）" if holder else ""
+            footer = (
+                f"{tag} 全球最高：{global_best} 題{holder_text}"
+                f"　｜　你的名次：第 {rank} 名 / {total} 人"
+            )
             embed = discord.Embed(
                 title="❌ 答錯了！",
                 description=(
@@ -1254,6 +1312,7 @@ class VoiceGuessButton(discord.ui.Button):
                 ),
                 color=0xE74C3C,
             )
+            embed.set_footer(text=footer)
             await interaction.response.edit_message(embed=embed, view=view)
 
 
@@ -1359,6 +1418,7 @@ async def _sync_and_announce():
 @client.event
 async def on_ready():
     print(f"✅ Bot 已上線：{client.user}（ID: {client.user.id}）")
+    _load_voice_records()
     asyncio.create_task(_sync_and_announce())
     asyncio.create_task(asyncio.to_thread(load_operator_names))
     asyncio.create_task(asyncio.to_thread(load_range_data))
