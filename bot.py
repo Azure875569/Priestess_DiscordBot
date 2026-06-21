@@ -1303,9 +1303,8 @@ class VoiceGuessButton(discord.ui.Button):
             _update_global_record(uid, interaction.user.display_name, mk, best)
             global_best, rank, total, holder = _get_rank_info(uid, mk)
 
-            holder_text = f"（{holder}）" if holder else ""
             footer = (
-                f"{tag} 全球最高：{global_best} 題{holder_text}"
+                f"{tag} 全球最高：{global_best} 題"
                 f"　｜　你的名次：第 {rank} 名 / {total} 人"
             )
             embed = discord.Embed(
