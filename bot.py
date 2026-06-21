@@ -7,7 +7,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES, load_wikig_operators, get_wikig_title_voice, load_wikig_cn_names
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES, load_wikig_operators, get_wikig_random_voice, load_wikig_cn_names
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -1277,7 +1277,7 @@ async def _send_voice_guess(interaction: discord.Interaction, followup: bool = F
     for _ in range(8):
         pool = random.sample(ops, 4)
         candidate = pool[0]
-        data = await asyncio.to_thread(get_wikig_title_voice, candidate)
+        data = await asyncio.to_thread(get_wikig_random_voice, candidate)
         if data:
             voice_data = data
             correct_en = candidate

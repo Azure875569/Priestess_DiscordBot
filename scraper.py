@@ -30,7 +30,8 @@ _file_url_cache: dict[str, str] = {}
 _image_urls_cache: dict[str, dict] = {}
 _skin_url_cache: dict[str, list[str]] = {}
 _wikig_op_cache: list[str] = []
-_wikig_cn_cache: dict[str, str] = {}   # wiki.gg 英文名 → 繁體中文名
+_wikig_cn_cache: dict[str, str] = {}        # wiki.gg 英文名 → 繁體中文名
+_wikig_voice_url_cache: dict[str, list[str]] = {}  # wiki.gg 英文名 → JP 語音 URL 列表
 
 
 def load_operator_names() -> list[str]:
@@ -1934,14 +1935,46 @@ def load_wikig_cn_names() -> dict[str, str]:
     return _wikig_cn_cache
 
 
-def get_wikig_title_voice(op_name: str) -> bytes | None:
-    """下載幹員「任命助理」JP 語音（-001.ogg），回傳 bytes；失敗回傳 None。"""
-    url_name = op_name.replace(" ", "_")
-    url = f"{WIKIG_BASE}/images/{url_name}-001.ogg"
+def _get_wikig_voice_urls(op_name: str) -> list[str]:
+    """取得幹員所有 JP 語音的 URL 列表（快取）。"""
+    if op_name in _wikig_voice_url_cache:
+        return _wikig_voice_url_cache[op_name]
     try:
-        r = requests.get(url, headers=WIKIG_HEADERS, timeout=10)
-        if r.status_code == 200 and len(r.content) > 5000:
-            return r.content
+        from bs4 import BeautifulSoup
+        url_name = op_name.replace(" ", "_")
+        r = requests.get(f"{WIKIG_BASE}/wiki/{url_name}/Dialogue",
+                         headers=WIKIG_HEADERS, timeout=15)
+        soup = BeautifulSoup(r.text, "html.parser")
+        urls = []
+        for row in soup.select("div.mw-parser-output tr"):
+            tds = row.find_all("td")
+            if len(tds) < 2:
+                continue
+            for audio in tds[1].find_all("audio"):
+                src = audio.find("source")
+                if not src:
+                    continue
+                file_url = src["src"].split("?")[0]
+                fname = file_url.split("/")[-1]
+                if not any(s in fname for s in ["-CN", "-EN", "-KR"]):
+                    urls.append(file_url)
     except Exception:
-        pass
+        urls = []
+    _wikig_voice_url_cache[op_name] = urls
+    return urls
+
+
+def get_wikig_random_voice(op_name: str) -> bytes | None:
+    """下載幹員隨機一條 JP 語音，回傳 bytes；失敗回傳 None。"""
+    urls = _get_wikig_voice_urls(op_name)
+    if not urls:
+        return None
+    for _ in range(3):
+        url = random.choice(urls)
+        try:
+            r = requests.get(url, headers=WIKIG_HEADERS, timeout=10)
+            if r.status_code == 200 and len(r.content) > 5000:
+                return r.content
+        except Exception:
+            pass
     return None
