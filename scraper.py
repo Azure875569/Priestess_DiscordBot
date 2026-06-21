@@ -1937,28 +1937,24 @@ def load_wikig_cn_names() -> dict[str, str]:
 
 
 def _get_wikig_voice_urls(op_name: str) -> list[str]:
-    """取得幹員所有 JP 語音的 URL 列表（快取）。"""
+    """透過 wiki.gg MediaWiki API 取得幹員所有 JP 語音 URL（快取）。"""
     if op_name in _wikig_voice_url_cache:
         return _wikig_voice_url_cache[op_name]
+    url_name = op_name.replace(" ", "_")
+    titles = "|".join(f"File:{url_name}-{i:03d}.ogg" for i in range(1, 51))
     try:
-        from bs4 import BeautifulSoup
-        url_name = op_name.replace(" ", "_")
-        r = requests.get(f"{WIKIG_BASE}/wiki/{url_name}/Dialogue",
-                         headers=WIKIG_HEADERS, timeout=15)
-        soup = BeautifulSoup(r.text, "html.parser")
-        urls = []
-        for row in soup.select("div.mw-parser-output tr"):
-            tds = row.find_all("td")
-            if len(tds) < 2:
-                continue
-            for audio in tds[1].find_all("audio"):
-                src = audio.find("source")
-                if not src:
-                    continue
-                file_url = src["src"].split("?")[0]
-                fname = file_url.split("/")[-1]
-                if not any(s in fname for s in ["-CN", "-EN", "-KR"]):
-                    urls.append(file_url)
+        r = requests.get(
+            f"{WIKIG_BASE}/api.php",
+            params={"action": "query", "titles": titles,
+                    "prop": "imageinfo", "iiprop": "url", "format": "json"},
+            headers=WIKIG_HEADERS, timeout=15,
+        )
+        pages = r.json().get("query", {}).get("pages", {}).values()
+        urls = [
+            p["imageinfo"][0]["url"]
+            for p in pages
+            if "missing" not in p and p.get("imageinfo")
+        ]
     except Exception:
         urls = []
     _wikig_voice_url_cache[op_name] = urls
