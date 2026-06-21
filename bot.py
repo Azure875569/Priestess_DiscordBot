@@ -1184,8 +1184,17 @@ async def operator_materials(interaction: discord.Interaction, 幹員名稱: str
 
 # ── 語音猜角色 ────────────────────────────────────────────────────────────────
 
-_voice_streaks: dict[int, int] = {}   # user_id → 當前連答數
-_voice_bests: dict[int, int] = {}     # user_id → 最高連答紀錄
+# (user_id, mode_key) → 數值；mode_key: "random" | "title"
+_voice_streaks: dict[tuple[int, str], int] = {}
+_voice_bests: dict[tuple[int, str], int] = {}
+
+
+def _mode_key(title_only: bool) -> str:
+    return "title" if title_only else "random"
+
+
+def _mode_tag(title_only: bool) -> str:
+    return "♟️ Arknights模式" if title_only else "🎲 全語音模式"
 
 
 class VoiceGuessButton(discord.ui.Button):
@@ -1215,18 +1224,18 @@ class VoiceGuessButton(discord.ui.Button):
                     item.style = discord.ButtonStyle.danger
 
         uid = view.user_id
+        mk = _mode_key(view.title_only)
+        tag = _mode_tag(view.title_only)
         is_correct = self.choice == view.correct
 
-        mode_tag = "🎯 標題語音模式" if view.title_only else "🎲 全語音模式"
-
         if is_correct:
-            new_streak = _voice_streaks.get(uid, 0) + 1
-            _voice_streaks[uid] = new_streak
-            if new_streak > _voice_bests.get(uid, 0):
-                _voice_bests[uid] = new_streak
+            new_streak = _voice_streaks.get((uid, mk), 0) + 1
+            _voice_streaks[(uid, mk)] = new_streak
+            if new_streak > _voice_bests.get((uid, mk), 0):
+                _voice_bests[(uid, mk)] = new_streak
             embed = discord.Embed(
                 title="✅ 答對了！",
-                description=f"是 **{view.correct}**！\n🔥 連答：{new_streak} 題　｜　{mode_tag}",
+                description=f"是 **{view.correct}**！\n🔥 連答：{new_streak} 題　｜　{tag}",
                 color=0x2ECC71,
             )
             await interaction.response.edit_message(embed=embed, view=view)
@@ -1234,11 +1243,15 @@ class VoiceGuessButton(discord.ui.Button):
             await interaction.delete_original_response()
             await _send_voice_guess(interaction, followup=True, title_only=view.title_only)
         else:
-            _voice_streaks[uid] = 0
-            best = _voice_bests.get(uid, 0)
+            current = _voice_streaks.get((uid, mk), 0)
+            _voice_streaks[(uid, mk)] = 0
+            best = _voice_bests.get((uid, mk), 0)
             embed = discord.Embed(
                 title="❌ 答錯了！",
-                description=f"正確答案是 **{view.correct}**\n🏆 本次最高連答：{best} 題　｜　{mode_tag}",
+                description=(
+                    f"正確答案是 **{view.correct}**\n"
+                    f"本次連答：**{current}** 題　｜　{tag} 歷史最高：**{best}** 題"
+                ),
                 color=0xE74C3C,
             )
             await interaction.response.edit_message(embed=embed, view=view)
@@ -1305,11 +1318,12 @@ async def _send_voice_guess(
     choices_display = [display(en) for en in pool_en]
 
     uid = interaction.user.id
-    streak = _voice_streaks.get(uid, 0)
-    mode_tag = "🎯 標題語音模式" if title_only else "🎲 全語音模式"
+    mk = _mode_key(title_only)
+    streak = _voice_streaks.get((uid, mk), 0)
+    tag = _mode_tag(title_only)
     embed = discord.Embed(
         title="🎙️ 猜猜這是哪位幹員的語音？",
-        description=f"{mode_tag}　｜　🔥 目前連答：{streak} 題",
+        description=f"{tag}　｜　🔥 目前連答：{streak} 題",
         color=0x4169E1,
     )
     file = discord.File(io.BytesIO(voice_data), filename="voice.ogg")
