@@ -1250,7 +1250,7 @@ def _mode_tag(mode: str) -> str:
     if mode == "title":
         return "♟️ Arknights模式"
     if mode == "tap":
-        return "👆 觸摸模式"
+        return "🫳 觸摸模式"
     return "🎲 全語音模式"
 
 
