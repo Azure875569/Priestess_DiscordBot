@@ -8,7 +8,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES, load_wikig_operators, get_wikig_random_voice, get_wikig_title_voice, get_wikig_tap_voice, load_wikig_cn_names
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES, load_wikig_operators, get_wikig_random_voice, get_wikig_title_voice, load_wikig_cn_names
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -1191,7 +1191,7 @@ _voice_bests: dict[tuple[int, str], int] = {}
 
 # 全球排名持久化：{mode_key: {uid_str: [score, display_name]}}
 _RECORDS_FILE = "voice_records.json"
-_global_records: dict[str, dict[str, list]] = {"random": {}, "title": {}, "tap": {}}
+_global_records: dict[str, dict[str, list]] = {"random": {}, "title": {}}
 
 
 def _load_voice_records() -> None:
@@ -1200,7 +1200,7 @@ def _load_voice_records() -> None:
     try:
         with open(_RECORDS_FILE, encoding="utf-8") as f:
             data = json.load(f)
-        for mk in ("random", "title", "tap"):
+        for mk in ("random", "title"):
             for uid_str, val in data.get(mk, {}).items():
                 if isinstance(val, list) and len(val) == 2:
                     _global_records[mk][uid_str] = val
@@ -1239,27 +1239,15 @@ def _get_rank_info(uid: int, mk: str) -> tuple[int, int, int, str]:
 
 
 def _mode_key(mode: str) -> str:
-    if mode == "title":
-        return "title"
-    if mode == "tap":
-        return "tap"
-    return "random"
+    return "title" if mode == "title" else "random"
 
 
 def _mode_tag(mode: str) -> str:
-    if mode == "title":
-        return "♟️ Arknights模式"
-    if mode == "tap":
-        return "🫳 觸摸模式"
-    return "🎲 全語音模式"
+    return "♟️ Arknights模式" if mode == "title" else "🎲 全語音模式"
 
 
 def _mode_fetch(mode: str):
-    if mode == "title":
-        return get_wikig_title_voice
-    if mode == "tap":
-        return get_wikig_tap_voice
-    return get_wikig_random_voice
+    return get_wikig_title_voice if mode == "title" else get_wikig_random_voice
 
 
 class VoiceGuessButton(discord.ui.Button):
@@ -1417,7 +1405,6 @@ async def _send_voice_guess(
 @app_commands.choices(模式=[
     app_commands.Choice(name="全語音", value="random"),
     app_commands.Choice(name="Arknights模式", value="title"),
-    app_commands.Choice(name="觸摸模式", value="tap"),
 ])
 async def voice_guess_cmd(interaction: discord.Interaction, 模式: Optional[str] = None):
     try:
