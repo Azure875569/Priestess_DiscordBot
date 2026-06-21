@@ -4,6 +4,10 @@ import requests
 import zhconv
 
 BASE_URL = "https://prts.wiki"
+WIKIG_BASE = "https://arknights.wiki.gg"
+WIKIG_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
 
 RARITY_STARS = {
     "1": "★",
@@ -25,6 +29,8 @@ _range_cache: dict = {}
 _file_url_cache: dict[str, str] = {}
 _image_urls_cache: dict[str, dict] = {}
 _skin_url_cache: dict[str, list[str]] = {}
+_wikig_op_cache: list[str] = []
+_wikig_cn_cache: dict[str, str] = {}   # wiki.gg 英文名 → 繁體中文名
 
 
 def load_operator_names() -> list[str]:
@@ -1836,3 +1842,106 @@ def get_gacha_pools() -> list[dict]:
         )
 
     return pools
+
+
+def load_wikig_operators() -> list[str]:
+    """從 wiki.gg Category:Operators 取得所有幹員英文名稱列表。"""
+    global _wikig_op_cache
+    if _wikig_op_cache:
+        return _wikig_op_cache
+    try:
+        params = {
+            "action": "query", "list": "categorymembers",
+            "cmtitle": "Category:Operator", "cmlimit": 500,
+            "cmnamespace": 0, "format": "json",
+        }
+        r = requests.get(f"{WIKIG_BASE}/api.php", params=params,
+                         headers=WIKIG_HEADERS, timeout=15)
+        _wikig_op_cache = [
+            m["title"] for m in r.json()["query"]["categorymembers"]
+            if "/" not in m["title"]
+        ]
+    except Exception:
+        _wikig_op_cache = []
+    return _wikig_op_cache
+
+
+# 無法透過 PRTS redirect 自動找到的幹員，手動補充
+_WIKIG_CN_SUPPLEMENTS: dict[str, str] = {
+    "Shirayuki": "白雪",
+    "Reed the Flame Shadow": "焰影葦草",
+    "Lava the Purgatory": "炎獄炎熔",
+    "Leto": "露託",
+    "Pozëmka": "寒霜",
+    "Snegurochka": "雪獵",
+    "Vetochki": "折椏",
+    "Rosa": "早露",
+    "Mr. Nothing": "烏有",
+    "Fang the Fire-Sharpened": "歷陣銳槍芬",
+}
+
+
+def load_wikig_cn_names() -> dict[str, str]:
+    """透過 PRTS redirect 建立 wiki.gg 英文名 → 繁體中文名對應表（小寫 key）。"""
+    global _wikig_cn_cache
+    if _wikig_cn_cache:
+        return _wikig_cn_cache
+    ops = load_wikig_operators()
+    if not ops:
+        return _wikig_cn_cache
+    result: dict[str, str] = {}
+    batch_size = 50
+    for i in range(0, len(ops), batch_size):
+        batch = ops[i : i + batch_size]
+        try:
+            params = {
+                "action": "query",
+                "titles": "|".join(batch),
+                "redirects": 1,
+                "format": "json",
+            }
+            r = requests.get(f"{BASE_URL}/api.php", params=params,
+                             headers=HEADERS, timeout=15)
+            data = r.json().get("query", {})
+            # 重新導向：wiki.gg 英文名 → PRTS 簡體中文名
+            redirects: dict[str, str] = {
+                rd["from"].lower(): rd["to"]
+                for rd in data.get("redirects", [])
+            }
+            # 正規化對應：PRTS 查詢後的最終頁面標題（含直接頁面和重新導向目標）
+            page_titles: dict[str, str] = {}
+            for page in data.get("pages", {}).values():
+                if "missing" not in page:
+                    page_titles[page["title"].lower()] = page["title"]
+            for en in batch:
+                en_low = en.lower()
+                # 情況 1：有重新導向（英文名 → 中文名）
+                hans = redirects.get(en_low)
+                # 情況 2：直接存在（頁面名稱就是英文，如 Mon3tr / 12F）
+                if not hans and en_low in page_titles:
+                    hans = page_titles[en_low]
+                if hans:
+                    cn_trad = zhconv.convert(hans, "zh-hant")
+                    result[en_low] = cn_trad
+                    result[en_low.replace(" ", "")] = cn_trad
+        except Exception:
+            pass
+    # 補充無法自動查到的幹員
+    for en, cn in _WIKIG_CN_SUPPLEMENTS.items():
+        result.setdefault(en.lower(), cn)
+        result.setdefault(en.lower().replace(" ", ""), cn)
+    _wikig_cn_cache = result
+    return _wikig_cn_cache
+
+
+def get_wikig_title_voice(op_name: str) -> bytes | None:
+    """下載幹員「任命助理」JP 語音（-001.ogg），回傳 bytes；失敗回傳 None。"""
+    url_name = op_name.replace(" ", "_")
+    url = f"{WIKIG_BASE}/images/{url_name}-001.ogg"
+    try:
+        r = requests.get(url, headers=WIKIG_HEADERS, timeout=10)
+        if r.status_code == 200 and len(r.content) > 5000:
+            return r.content
+    except Exception:
+        pass
+    return None

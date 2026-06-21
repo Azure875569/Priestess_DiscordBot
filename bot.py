@@ -1,4 +1,5 @@
 import asyncio
+import io
 import os
 from typing import Optional
 import discord
@@ -6,7 +7,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES, load_wikig_operators, get_wikig_title_voice, load_wikig_cn_names
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -1181,18 +1182,159 @@ async def operator_materials(interaction: discord.Interaction, 幹員名稱: str
         await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
 
 
+# ── 語音猜角色 ────────────────────────────────────────────────────────────────
+
+_voice_streaks: dict[int, int] = {}   # user_id → 當前連答數
+_voice_bests: dict[int, int] = {}     # user_id → 最高連答紀錄
+
+
+class VoiceGuessButton(discord.ui.Button):
+    def __init__(self, label: str, choice: str, parent_view: "VoiceGuessView"):
+        super().__init__(label=label, style=discord.ButtonStyle.secondary)
+        self.choice = choice
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        view = self.parent_view
+        if view.answered:
+            await interaction.response.defer()
+            return
+        if interaction.user.id != view.user_id:
+            await interaction.response.send_message("❌ 這不是你的遊戲！", ephemeral=True)
+            return
+
+        view.answered = True
+        view.stop()
+
+        for item in view.children:
+            item.disabled = True  # type: ignore
+            if isinstance(item, VoiceGuessButton):
+                if item.choice == view.correct:
+                    item.style = discord.ButtonStyle.success
+                elif item.choice == self.choice:
+                    item.style = discord.ButtonStyle.danger
+
+        uid = view.user_id
+        is_correct = self.choice == view.correct
+
+        if is_correct:
+            new_streak = _voice_streaks.get(uid, 0) + 1
+            _voice_streaks[uid] = new_streak
+            if new_streak > _voice_bests.get(uid, 0):
+                _voice_bests[uid] = new_streak
+            embed = discord.Embed(
+                title="✅ 答對了！",
+                description=f"是 **{view.correct}**！\n🔥 連答：{new_streak} 題",
+                color=0x2ECC71,
+            )
+            await interaction.response.edit_message(embed=embed, view=view)
+            await _send_voice_guess(interaction, followup=True)
+        else:
+            _voice_streaks[uid] = 0
+            best = _voice_bests.get(uid, 0)
+            embed = discord.Embed(
+                title="❌ 答錯了！",
+                description=f"正確答案是 **{view.correct}**\n🏆 本次最高連答：{best} 題",
+                color=0xE74C3C,
+            )
+            await interaction.response.edit_message(embed=embed, view=view)
+
+
+class VoiceGuessView(discord.ui.View):
+    def __init__(self, correct: str, choices: list[str], user_id: int):
+        super().__init__(timeout=60)
+        self.correct = correct
+        self.user_id = user_id
+        self.answered = False
+        for i, ch in enumerate(choices):
+            self.add_item(VoiceGuessButton(
+                label=f"{chr(65 + i)}. {ch}",
+                choice=ch,
+                parent_view=self,
+            ))
+
+    async def on_timeout(self):
+        self.answered = True
+        for item in self.children:
+            item.disabled = True  # type: ignore
+
+
+async def _send_voice_guess(interaction: discord.Interaction, followup: bool = False):
+    """選出幹員、下載語音、發送題目。"""
+    ops = await asyncio.to_thread(load_wikig_operators)
+    if len(ops) < 4:
+        await interaction.followup.send("❌ 無法載入幹員清單，請稍後再試。", ephemeral=True)
+        return
+
+    cn_map = await asyncio.to_thread(load_wikig_cn_names)
+
+    voice_data: bytes | None = None
+    correct_en: str = ""
+    pool_en: list[str] = []
+
+    for _ in range(8):
+        pool = random.sample(ops, 4)
+        candidate = pool[0]
+        data = await asyncio.to_thread(get_wikig_title_voice, candidate)
+        if data:
+            voice_data = data
+            correct_en = candidate
+            random.shuffle(pool)
+            pool_en = pool
+            break
+
+    if not voice_data:
+        await interaction.followup.send("❌ 無法取得語音檔案，請稍後再試。", ephemeral=True)
+        return
+
+    # dict key 全小寫；依序嘗試原始、去空格，找不到就顯示英文名
+    def display(en: str) -> str:
+        key = en.lower()
+        return cn_map.get(key) or cn_map.get(key.replace(" ", "")) or en
+
+    correct_display = display(correct_en)
+    choices_display = [display(en) for en in pool_en]
+
+    uid = interaction.user.id
+    streak = _voice_streaks.get(uid, 0)
+    embed = discord.Embed(
+        title="🎙️ 猜猜這是哪位幹員的語音？",
+        description=f"🔥 目前連答：{streak} 題",
+        color=0x4169E1,
+    )
+    file = discord.File(io.BytesIO(voice_data), filename="voice.ogg")
+    view = VoiceGuessView(correct=correct_display, choices=choices_display, user_id=uid)
+
+    await interaction.followup.send(embed=embed, file=file, view=view)
+
+
+@tree.command(name="語音猜角色", description="聆聽幹員任命助理語音（JP），猜猜是誰！答對繼續出題，答錯結束並公布答案")
+async def voice_guess_cmd(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+    except discord.errors.NotFound:
+        return
+    await _send_voice_guess(interaction, followup=True)
+
+
+async def _sync_and_announce():
+    await tree.sync()
+    print("📡 斜線指令已同步")
+
+
 @client.event
 async def on_ready():
-    await tree.sync()
     print(f"✅ Bot 已上線：{client.user}（ID: {client.user.id}）")
-    print("📡 斜線指令已同步，首次使用可能需要幾分鐘生效")
+    asyncio.create_task(_sync_and_announce())
     asyncio.create_task(asyncio.to_thread(load_operator_names))
     asyncio.create_task(asyncio.to_thread(load_range_data))
     asyncio.create_task(asyncio.to_thread(load_real_names))
     asyncio.create_task(asyncio.to_thread(load_story_chars))
     asyncio.create_task(asyncio.to_thread(load_drive_images))
     asyncio.create_task(asyncio.to_thread(load_operator_genders))
-    print("⏳ 正在背景載入幹員清單、範圍資料、角色真名、劇情角色、Drive 圖片清單與幹員性別...")
+    asyncio.create_task(asyncio.to_thread(load_wikig_operators))
+    asyncio.create_task(asyncio.to_thread(load_wikig_cn_names))
+    print("⏳ 正在背景載入資料...")
 
 
 client.run(TOKEN)
