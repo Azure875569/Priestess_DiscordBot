@@ -8,7 +8,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES, load_wikig_operators, get_wikig_random_voice, get_wikig_title_voice, load_wikig_cn_names
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES, load_wikig_operators, get_wikig_random_voice, get_wikig_title_voice, get_wikig_tap_voice, load_wikig_cn_names
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -1191,7 +1191,7 @@ _voice_bests: dict[tuple[int, str], int] = {}
 
 # 全球排名持久化：{mode_key: {uid_str: [score, display_name]}}
 _RECORDS_FILE = "voice_records.json"
-_global_records: dict[str, dict[str, list]] = {"random": {}, "title": {}}
+_global_records: dict[str, dict[str, list]] = {"random": {}, "title": {}, "tap": {}}
 
 
 def _load_voice_records() -> None:
@@ -1200,7 +1200,7 @@ def _load_voice_records() -> None:
     try:
         with open(_RECORDS_FILE, encoding="utf-8") as f:
             data = json.load(f)
-        for mk in ("random", "title"):
+        for mk in ("random", "title", "tap"):
             for uid_str, val in data.get(mk, {}).items():
                 if isinstance(val, list) and len(val) == 2:
                     _global_records[mk][uid_str] = val
@@ -1238,12 +1238,28 @@ def _get_rank_info(uid: int, mk: str) -> tuple[int, int, int, str]:
     return global_best, rank, len(records), global_holder_name
 
 
-def _mode_key(title_only: bool) -> str:
-    return "title" if title_only else "random"
+def _mode_key(mode: str) -> str:
+    if mode == "title":
+        return "title"
+    if mode == "tap":
+        return "tap"
+    return "random"
 
 
-def _mode_tag(title_only: bool) -> str:
-    return "♟️ Arknights模式" if title_only else "🎲 全語音模式"
+def _mode_tag(mode: str) -> str:
+    if mode == "title":
+        return "♟️ Arknights模式"
+    if mode == "tap":
+        return "👆 觸摸模式"
+    return "🎲 全語音模式"
+
+
+def _mode_fetch(mode: str):
+    if mode == "title":
+        return get_wikig_title_voice
+    if mode == "tap":
+        return get_wikig_tap_voice
+    return get_wikig_random_voice
 
 
 class VoiceGuessButton(discord.ui.Button):
@@ -1273,8 +1289,8 @@ class VoiceGuessButton(discord.ui.Button):
                     item.style = discord.ButtonStyle.danger
 
         uid = view.user_id
-        mk = _mode_key(view.title_only)
-        tag = _mode_tag(view.title_only)
+        mk = _mode_key(view.mode)
+        tag = _mode_tag(view.mode)
         is_correct = self.choice == view.correct
 
         if is_correct:
@@ -1290,7 +1306,7 @@ class VoiceGuessButton(discord.ui.Button):
             await interaction.response.edit_message(embed=embed, view=view)
             await asyncio.sleep(1.5)
             await interaction.delete_original_response()
-            await _send_voice_guess(interaction, followup=True, title_only=view.title_only)
+            await _send_voice_guess(interaction, followup=True, mode=view.mode)
         else:
             current = _voice_streaks.get((uid, mk), 0)
             _voice_streaks[(uid, mk)] = 0
@@ -1317,12 +1333,12 @@ class VoiceGuessButton(discord.ui.Button):
 
 
 class VoiceGuessView(discord.ui.View):
-    def __init__(self, correct: str, choices: list[str], user_id: int, title_only: bool = False):
+    def __init__(self, correct: str, choices: list[str], user_id: int, mode: str = "random"):
         super().__init__(timeout=60)
         self.correct = correct
         self.user_id = user_id
         self.answered = False
-        self.title_only = title_only
+        self.mode = mode
         for i, ch in enumerate(choices):
             self.add_item(VoiceGuessButton(
                 label=f"{chr(65 + i)}. {ch}",
@@ -1339,16 +1355,16 @@ class VoiceGuessView(discord.ui.View):
 async def _send_voice_guess(
     interaction: discord.Interaction,
     followup: bool = False,
-    title_only: bool = False,
+    mode: str = "random",
 ):
-    """選出幹員、下載語音、發送題目。title_only=True 時只使用 Title 語音。"""
+    """選出幹員、下載語音、發送題目。mode: 'random' | 'title' | 'tap'"""
     ops = await asyncio.to_thread(load_wikig_operators)
     if len(ops) < 4:
         await interaction.followup.send("❌ 無法載入幹員清單，請稍後再試。", ephemeral=True)
         return
 
     cn_map = await asyncio.to_thread(load_wikig_cn_names)
-    fetch_voice = get_wikig_title_voice if title_only else get_wikig_random_voice
+    fetch_voice = _mode_fetch(mode)
 
     voice_data: bytes | None = None
     correct_en: str = ""
@@ -1377,9 +1393,9 @@ async def _send_voice_guess(
     choices_display = [display(en) for en in pool_en]
 
     uid = interaction.user.id
-    mk = _mode_key(title_only)
+    mk = _mode_key(mode)
     streak = _voice_streaks.get((uid, mk), 0)
-    tag = _mode_tag(title_only)
+    tag = _mode_tag(mode)
     embed = discord.Embed(
         title="🎙️ 猜猜這是哪位幹員的語音？",
         description=f"{tag}　｜　🔥 目前連答：{streak} 題",
@@ -1390,7 +1406,7 @@ async def _send_voice_guess(
         correct=correct_display,
         choices=choices_display,
         user_id=uid,
-        title_only=title_only,
+        mode=mode,
     )
 
     await interaction.followup.send(embed=embed, file=file, view=view)
@@ -1399,15 +1415,16 @@ async def _send_voice_guess(
 @tree.command(name="語音猜角色", description="聆聽幹員語音（JP），猜猜是誰！答對繼續出題，答錯結束並公布答案")
 @app_commands.describe(模式="選擇語音範圍（預設：全語音）")
 @app_commands.choices(模式=[
-    app_commands.Choice(name="全語音", value="全語音"),
-    app_commands.Choice(name="標題語音", value="標題語音"),
+    app_commands.Choice(name="全語音", value="random"),
+    app_commands.Choice(name="Arknights模式", value="title"),
+    app_commands.Choice(name="觸摸模式", value="tap"),
 ])
 async def voice_guess_cmd(interaction: discord.Interaction, 模式: Optional[str] = None):
     try:
         await interaction.response.defer()
     except discord.errors.NotFound:
         return
-    await _send_voice_guess(interaction, followup=True, title_only=(模式 == "標題語音"))
+    await _send_voice_guess(interaction, followup=True, mode=模式 or "random")
 
 
 async def _sync_and_announce():

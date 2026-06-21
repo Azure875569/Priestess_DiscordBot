@@ -1977,10 +1977,9 @@ def get_wikig_random_voice(op_name: str) -> bytes | None:
     return None
 
 
-def get_wikig_title_voice(op_name: str) -> bytes | None:
-    """下載幹員 Title 語音（第 035 條 JP），回傳 bytes；失敗回傳 None。"""
+def _get_wikig_fixed_voice(op_name: str, number: str) -> bytes | None:
     url_name = op_name.replace(" ", "_")
-    url = f"{WIKIG_BASE}/images/{url_name}-035.ogg"
+    url = f"{WIKIG_BASE}/images/{url_name}-{number}.ogg"
     try:
         r = requests.get(url, headers=WIKIG_HEADERS, timeout=10)
         if r.status_code == 200 and len(r.content) > 5000:
@@ -1988,3 +1987,13 @@ def get_wikig_title_voice(op_name: str) -> bytes | None:
     except Exception:
         pass
     return None
+
+
+def get_wikig_title_voice(op_name: str) -> bytes | None:
+    """下載幹員 Title 語音（第 035 條 JP）。"""
+    return _get_wikig_fixed_voice(op_name, "035")
+
+
+def get_wikig_tap_voice(op_name: str) -> bytes | None:
+    """下載幹員 Tap 語音（第 032 條 JP）。"""
+    return _get_wikig_fixed_voice(op_name, "032")
