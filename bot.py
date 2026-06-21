@@ -1228,6 +1228,8 @@ class VoiceGuessButton(discord.ui.Button):
                 color=0x2ECC71,
             )
             await interaction.response.edit_message(embed=embed, view=view)
+            await asyncio.sleep(1.5)
+            await interaction.delete_original_response()
             await _send_voice_guess(interaction, followup=True)
         else:
             _voice_streaks[uid] = 0
