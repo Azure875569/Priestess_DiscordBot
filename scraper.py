@@ -1879,6 +1879,7 @@ _WIKIG_CN_SUPPLEMENTS: dict[str, str] = {
     "Rosa": "早露",
     "Mr. Nothing": "烏有",
     "Fang the Fire-Sharpened": "歷陣銳槍芬",
+    "Lessing": "止頌",
 }
 
 
@@ -1927,10 +1928,10 @@ def load_wikig_cn_names() -> dict[str, str]:
                     result[en_low.replace(" ", "")] = cn_trad
         except Exception:
             pass
-    # 補充無法自動查到的幹員
+    # 補充表強制覆蓋（優先於自動查詢結果）
     for en, cn in _WIKIG_CN_SUPPLEMENTS.items():
-        result.setdefault(en.lower(), cn)
-        result.setdefault(en.lower().replace(" ", ""), cn)
+        result[en.lower()] = cn
+        result[en.lower().replace(" ", "")] = cn
     _wikig_cn_cache = result
     return _wikig_cn_cache
 
