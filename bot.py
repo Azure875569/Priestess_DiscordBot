@@ -1217,6 +1217,8 @@ class VoiceGuessButton(discord.ui.Button):
         uid = view.user_id
         is_correct = self.choice == view.correct
 
+        mode_tag = "🎯 標題語音模式" if view.title_only else "🎲 全語音模式"
+
         if is_correct:
             new_streak = _voice_streaks.get(uid, 0) + 1
             _voice_streaks[uid] = new_streak
@@ -1224,7 +1226,7 @@ class VoiceGuessButton(discord.ui.Button):
                 _voice_bests[uid] = new_streak
             embed = discord.Embed(
                 title="✅ 答對了！",
-                description=f"是 **{view.correct}**！\n🔥 連答：{new_streak} 題",
+                description=f"是 **{view.correct}**！\n🔥 連答：{new_streak} 題　｜　{mode_tag}",
                 color=0x2ECC71,
             )
             await interaction.response.edit_message(embed=embed, view=view)
@@ -1236,7 +1238,7 @@ class VoiceGuessButton(discord.ui.Button):
             best = _voice_bests.get(uid, 0)
             embed = discord.Embed(
                 title="❌ 答錯了！",
-                description=f"正確答案是 **{view.correct}**\n🏆 本次最高連答：{best} 題",
+                description=f"正確答案是 **{view.correct}**\n🏆 本次最高連答：{best} 題　｜　{mode_tag}",
                 color=0xE74C3C,
             )
             await interaction.response.edit_message(embed=embed, view=view)
