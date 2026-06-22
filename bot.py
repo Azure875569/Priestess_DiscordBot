@@ -839,7 +839,7 @@ async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = No
                     f"你抽到**我**了喔，**親愛的**～\n我就相信我們之間的連結會跨越時間與空間，"
                     f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
                     f"來吧，我親愛的預言家 {interaction.user.mention}\n"
-                    f"今日份的{role_label} <:w_heart:1518483732540031109>"
+                    f"今日份的{role_label} <:theresa_heart:1518491711398088885>"
                 ),
                 color=0xFF0000,
             )
@@ -874,7 +874,7 @@ async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = No
         sex = genders.get(name_hans, "未知")
         em = discord.Embed(
             title=trad_name,
-            description=f"今日份的{role_label} <:w_heart:1518483732540031109>",
+            description=f"今日份的{role_label} <:theresa_heart:1518491711398088885>",
             color=0xFF69B4,
         )
         if img_url:
@@ -975,7 +975,7 @@ async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] =
                     f"你抽到**我**了喔，**親愛的**～\n我就相信我們之間的連結會跨越時間與空間，"
                     f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
                     f"來吧，我親愛的預言家 {interaction.user.mention}\n"
-                    f"今日份的{role_label} <:w_heart:1518483732540031109>"
+                    f"今日份的{role_label} <:theresa_heart:1518491711398088885>"
                 ),
                 color=0xFF0000,
             )
@@ -1009,7 +1009,7 @@ async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] =
         trad_name, img_url, sex = await image_task
         em = discord.Embed(
             title=trad_name,
-            description=f"今日份的{role_label} <:w_heart:1518483732540031109>",
+            description=f"今日份的{role_label} <:theresa_heart:1518491711398088885>",
             color=0xFF69B4,
         )
         if img_url:
