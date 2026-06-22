@@ -843,7 +843,7 @@ async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = No
                 color=0xFF0000,
             )
             em_p.set_image(url="attachment://priestess.png")
-            em_p.set_footer(text=f"今日份的{role_label}💕")
+            em_p.set_footer(text=f"今日份的{role_label}<:w_heart:1518483732540031109>")
             await interaction.followup.send(embed=em_p, file=priestess_file)
             return
 
@@ -876,7 +876,7 @@ async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = No
 
         if img_url:
             em.set_image(url=img_url)
-        em.set_footer(text=f"今日份的{role_label}💕")
+        em.set_footer(text=f"今日份的{role_label}<:w_heart:1518483732540031109>")
         await interaction.followup.send(embed=em)
 
     except Exception:
@@ -977,7 +977,7 @@ async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] =
                 color=0xFF0000,
             )
             em_p.set_image(url="attachment://priestess.png")
-            em_p.set_footer(text=f"今日份的{role_label}💕")
+            em_p.set_footer(text=f"今日份的{role_label}<:w_heart:1518483732540031109>")
             await interaction.followup.send(embed=em_p, file=priestess_file)
             return
 
@@ -1009,7 +1009,7 @@ async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] =
 
         if img_url:
             em.set_image(url=img_url)
-        em.set_footer(text=f"今日份的{role_label}💕")
+        em.set_footer(text=f"今日份的{role_label}<:w_heart:1518483732540031109>")
         await interaction.followup.send(embed=em)
 
     except Exception:
