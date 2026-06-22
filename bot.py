@@ -819,7 +819,7 @@ async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = No
                 f"{interaction.user.mention} 今天的{role_label}是..."
             )
             msg = await interaction.original_response()
-            spin_icons = ["🎰", "🎲", "🃏", "🎯"]
+            spin_icons = ["<:rosmontis_think:1518487469618626724>", "<:rosmontis_cat:1518494309228347472>", "<:rosmontis_think:1518487469618626724>", "<:rosmontis_cat:1518494309228347472>"]
             for i in range(4):
                 await asyncio.sleep(0.6)
                 shown = [zhconv.convert(random.choice(names), "zh-hant") for _ in range(3)]
@@ -855,7 +855,7 @@ async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = No
         )
         msg = await interaction.original_response()
 
-        spin_icons = ["🎰", "🎲", "🃏", "🎯"]
+        spin_icons = ["<:rosmontis_think:1518487469618626724>", "<:rosmontis_cat:1518494309228347472>", "<:rosmontis_think:1518487469618626724>", "<:rosmontis_cat:1518494309228347472>"]
         for i in range(4):
             await asyncio.sleep(0.6)
             shown = [zhconv.convert(random.choice(names), "zh-hant") for _ in range(3)]
@@ -955,7 +955,7 @@ async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] =
                 f"{interaction.user.mention} 今天的{role_label}是..."
             )
             msg = await interaction.original_response()
-            spin_icons = ["🎰", "🎲", "🃏", "🎯"]
+            spin_icons = ["<:rosmontis_think:1518487469618626724>", "<:rosmontis_cat:1518494309228347472>", "<:rosmontis_think:1518487469618626724>", "<:rosmontis_cat:1518494309228347472>"]
             for i in range(4):
                 await asyncio.sleep(0.6)
                 shown = [random.choice(all_display) for _ in range(3)]
@@ -991,7 +991,7 @@ async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] =
         )
         msg = await interaction.original_response()
 
-        spin_icons = ["🎰", "🎲", "🃏", "🎯"]
+        spin_icons = ["<:rosmontis_think:1518487469618626724>", "<:rosmontis_cat:1518494309228347472>", "<:rosmontis_think:1518487469618626724>", "<:rosmontis_cat:1518494309228347472>"]
         for i in range(4):
             await asyncio.sleep(0.6)
             shown = [random.choice(all_display) for _ in range(3)]
