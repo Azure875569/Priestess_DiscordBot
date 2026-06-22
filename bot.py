@@ -1202,8 +1202,9 @@ def _load_voice_records() -> None:
             data = json.load(f)
         for mk in ("random", "title"):
             for uid_str, val in data.get(mk, {}).items():
-                if isinstance(val, list) and len(val) == 2:
-                    _global_records[mk][uid_str] = val
+                score = val[0] if isinstance(val, list) else val
+                if isinstance(score, int):
+                    _global_records[mk][uid_str] = score
     except Exception:
         pass
 
@@ -1216,26 +1217,24 @@ def _save_voice_records() -> None:
         pass
 
 
-def _update_global_record(uid: int, display_name: str, mk: str, score: int) -> None:
+def _update_global_record(uid: int, mk: str, score: int) -> None:
     uid_str = str(uid)
-    if score > _global_records[mk].get(uid_str, [0])[0]:
-        _global_records[mk][uid_str] = [score, display_name]
+    if score > _global_records[mk].get(uid_str, 0):
+        _global_records[mk][uid_str] = score
         _save_voice_records()
 
 
-def _get_rank_info(uid: int, mk: str) -> tuple[int, int, int, str]:
-    """(global_best_score, user_rank, total_players, global_best_holder_name)"""
+def _get_rank_info(uid: int, mk: str) -> tuple[int, int, int]:
+    """(global_best_score, user_rank, total_players)"""
     records = _global_records[mk]
     uid_str = str(uid)
     if not records:
-        return 0, 1, 1, ""
-    sorted_scores = sorted((v[0] for v in records.values()), reverse=True)
+        return 0, 1, 1
+    sorted_scores = sorted(records.values(), reverse=True)
     global_best = sorted_scores[0]
-    holder = max(records.items(), key=lambda kv: kv[1][0])
-    global_holder_name = holder[1][1]
-    user_score = records.get(uid_str, [0])[0]
+    user_score = records.get(uid_str, 0)
     rank = sum(1 for s in sorted_scores if s > user_score) + 1
-    return global_best, rank, len(records), global_holder_name
+    return global_best, rank, len(records)
 
 
 def _mode_key(mode: str) -> str:
@@ -1300,8 +1299,8 @@ class VoiceGuessButton(discord.ui.Button):
             _voice_streaks[(uid, mk)] = 0
             best = _voice_bests.get((uid, mk), 0)
 
-            _update_global_record(uid, interaction.user.display_name, mk, best)
-            global_best, rank, total, holder = _get_rank_info(uid, mk)
+            _update_global_record(uid, mk, best)
+            global_best, rank, total = _get_rank_info(uid, mk)
 
             footer = (
                 f"{tag} 全球最高：{global_best} 題"
