@@ -1413,6 +1413,56 @@ async def voice_guess_cmd(interaction: discord.Interaction, 模式: Optional[str
     await _send_voice_guess(interaction, followup=True, mode=模式 or "random")
 
 
+@tree.command(name="幫助", description="顯示所有指令說明")
+async def help_cmd(interaction: discord.Interaction):
+    em = discord.Embed(
+        title="📖 普瑞賽斯Bot 指令說明",
+        description="以下是所有可用的斜線指令：",
+        color=0x5865F2,
+    )
+    em.add_field(
+        name="🔍 幹員查詢",
+        value=(
+            "`/幹員資料` 基本屬性、職業、潛能等基本資料\n"
+            "`/幹員檔案` 基礎檔案、體檢、履歷等背景故事\n"
+            "`/幹員技能` 技能、天賦、後勤技能與模組資訊\n"
+            "`/幹員時裝` 時裝圖片、品牌、畫師與取得方式\n"
+            "`/幹員素材計算` 技能專精與模組解鎖所需材料"
+        ),
+        inline=False,
+    )
+    em.add_field(
+        name="🎮 遊戲資訊",
+        value=(
+            "`/集成戰略資訊` 難度資料、分隊介紹或藏品資訊\n"
+            "`/陸服卡池未來視` 陸服限時尋訪活動一覽（由新至舊）\n"
+            "`/地區資料` 泰拉大陸地區簡介、國徽與場景圖"
+        ),
+        inline=False,
+    )
+    em.add_field(
+        name="👤 角色資訊",
+        value=(
+            "`/角色真名` 查詢幹員或劇情角色的真實姓名與出處\n"
+            "`/劇情角色` 劇情角色的簡介、出處與立繪"
+        ),
+        inline=False,
+    )
+    em.add_field(
+        name="🎲 娛樂功能",
+        value=(
+            "`/抽角色 [偏好]` 從幹員中隨機抽取老公或老婆\n"
+            "`/抽角色擴充版 [偏好]` 幹員＋劇情角色全員參與抽籤\n"
+            "`/語音猜角色 [模式]` 聆聽幹員 JP 語音猜幹員名稱\n"
+            "　├ **全語音**：從所有語音中隨機抽取\n"
+            "　└ **Arknights模式**：只播放 Title 語音"
+        ),
+        inline=False,
+    )
+    em.set_footer(text="資料來源：PRTS Wiki・arknights.wiki.gg")
+    await interaction.response.send_message(embed=em, view=DeleteView())
+
+
 async def _sync_and_announce():
     await tree.sync()
     print("📡 斜線指令已同步")
