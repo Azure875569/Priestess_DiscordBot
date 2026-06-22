@@ -838,12 +838,12 @@ async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = No
                 description=(
                     f"你抽到**我**了喔，**親愛的**～\n我就相信我們之間的連結會跨越時間與空間，"
                     f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
-                    f"來吧，我親愛的預言家 {interaction.user.mention}"
+                    f"來吧，我親愛的預言家 {interaction.user.mention}\n"
+                    f"今日份的{role_label} <:w_heart:1518483732540031109>"
                 ),
                 color=0xFF0000,
             )
             em_p.set_image(url="attachment://priestess.png")
-            em_p.set_footer(text=f"今日份的{role_label}<:w_heart:1518483732540031109>")
             await interaction.followup.send(embed=em_p, file=priestess_file)
             return
 
@@ -872,11 +872,13 @@ async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = No
 
         trad_name, img_url = await image_task
         sex = genders.get(name_hans, "未知")
-        em = discord.Embed(title=trad_name, color=0xFF69B4)
-
+        em = discord.Embed(
+            title=trad_name,
+            description=f"今日份的{role_label} <:w_heart:1518483732540031109>",
+            color=0xFF69B4,
+        )
         if img_url:
             em.set_image(url=img_url)
-        em.set_footer(text=f"今日份的{role_label}<:w_heart:1518483732540031109>")
         await interaction.followup.send(embed=em)
 
     except Exception:
@@ -972,12 +974,12 @@ async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] =
                 description=(
                     f"你抽到**我**了喔，**親愛的**～\n我就相信我們之間的連結會跨越時間與空間，"
                     f"我們將在悲傷與重逢交織的文明盡頭，再次牽起彼此的手..."
-                    f"來吧，我親愛的預言家 {interaction.user.mention}"
+                    f"來吧，我親愛的預言家 {interaction.user.mention}\n"
+                    f"今日份的{role_label} <:w_heart:1518483732540031109>"
                 ),
                 color=0xFF0000,
             )
             em_p.set_image(url="attachment://priestess.png")
-            em_p.set_footer(text=f"今日份的{role_label}<:w_heart:1518483732540031109>")
             await interaction.followup.send(embed=em_p, file=priestess_file)
             return
 
@@ -1005,11 +1007,13 @@ async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] =
         ))
 
         trad_name, img_url, sex = await image_task
-        em = discord.Embed(title=trad_name, color=0xFF69B4)
-
+        em = discord.Embed(
+            title=trad_name,
+            description=f"今日份的{role_label} <:w_heart:1518483732540031109>",
+            color=0xFF69B4,
+        )
         if img_url:
             em.set_image(url=img_url)
-        em.set_footer(text=f"今日份的{role_label}<:w_heart:1518483732540031109>")
         await interaction.followup.send(embed=em)
 
     except Exception:
