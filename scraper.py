@@ -1266,6 +1266,31 @@ def get_is_relic(is_name_hans: str, relic_query: str) -> dict | None:
     return None
 
 
+_relic_image_cache: dict[str, str] = {}
+
+
+def get_relic_image_url(is_name_hans: str, relic_id: str) -> str:
+    """查詢藏品圖片 URL（格式：收藏品 {IS名} {ID}.png）。找不到回傳空字串。"""
+    cache_key = f"{is_name_hans}:{relic_id}"
+    if cache_key in _relic_image_cache:
+        return _relic_image_cache[cache_key]
+    fname = f"File:收藏品 {is_name_hans} {relic_id}.png"
+    try:
+        r = requests.get(
+            f"{BASE_URL}/api.php",
+            params={"action": "query", "titles": fname,
+                    "prop": "imageinfo", "iiprop": "url", "format": "json"},
+            headers=HEADERS, timeout=10,
+        )
+        pages = list(r.json().get("query", {}).get("pages", {}).values())
+        p = pages[0] if pages else {}
+        url = p["imageinfo"][0]["url"] if ("missing" not in p and p.get("imageinfo")) else ""
+    except Exception:
+        url = ""
+    _relic_image_cache[cache_key] = url
+    return url
+
+
 _story_char_cache: list[dict] = []
 _operator_gender_cache: dict[str, str] = {}  # name_hans → 男/女/未知
 

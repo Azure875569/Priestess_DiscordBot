@@ -8,7 +8,7 @@ import zhconv
 from discord import app_commands
 from dotenv import load_dotenv
 import random
-from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES, load_wikig_operators, get_wikig_random_voice, get_wikig_title_voice, load_wikig_cn_names
+from scraper import get_operator_data, get_skill_data, get_material_data, get_lore_data, get_skin_data, get_gacha_pools, get_all_operator_names, get_wife_image, get_real_name, search_real_names, load_real_names, load_operator_names, load_range_data, render_range, search_operator_names, RARITY_STARS, IS_CONFIGS, get_is_difficulty, get_is_squads, get_is_relic, get_relic_image_url, search_is_relic_names, load_story_chars, search_story_chars, get_story_char, search_terra_countries, get_terra_country, load_drive_images, load_operator_genders, PORTRAIT_INDEX_OVERRIDES, load_wikig_operators, get_wikig_random_voice, get_wikig_title_voice, load_wikig_cn_names
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -443,6 +443,8 @@ async def is_info(
         rarity_label = _RELIC_RARITY_LABEL.get(rarity, "")
         stars = "★" * (rarity + 1)
 
+        img_url = await asyncio.to_thread(get_relic_image_url, is_hans, relic["id"])
+
         em = discord.Embed(
             title=relic["name_trad"],
             description=f"{stars}  {rarity_label}　　售價：{relic['price'] or '—'}",
@@ -452,6 +454,8 @@ async def is_info(
         em.add_field(name="效果", value=relic["effect"] or "—", inline=False)
         if relic["description"]:
             em.add_field(name="描述", value=relic["description"], inline=False)
+        if img_url:
+            em.set_thumbnail(url=img_url)
         em.set_footer(text=f"資料來源：PRTS Wiki・{is_trad}")
         await interaction.followup.send(embed=em, view=DeleteView())
 
