@@ -881,7 +881,9 @@ async def draw_char(interaction: discord.Interaction, 偏好: Optional[str] = No
             em.set_image(url=img_url)
         await interaction.followup.send(embed=em)
 
-    except Exception:
+    except Exception as e:
+        print(f"[抽角色 ERROR] {type(e).__name__}: {e}")
+        import traceback; traceback.print_exc()
         try:
             await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
         except Exception:
@@ -1016,7 +1018,9 @@ async def draw_char_ex(interaction: discord.Interaction, 偏好: Optional[str] =
             em.set_image(url=img_url)
         await interaction.followup.send(embed=em)
 
-    except Exception:
+    except Exception as e:
+        print(f"[抽角色擴充版 ERROR] {type(e).__name__}: {e}")
+        import traceback; traceback.print_exc()
         try:
             await interaction.followup.send("❌ 處理時發生錯誤，請稍後再試。", ephemeral=True)
         except Exception:
