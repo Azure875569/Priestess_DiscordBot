@@ -67,5 +67,5 @@ railway up
 使用以下連結將機器人加入你的伺服器（需要管理訊息等權限）：
 
 ```
-https://discord.com/oauth2/authorize?client_id=1516672745692463175&permissions=70508331067392&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1516672745692463175&permissions=70783209039872&scope=bot+applications.commands
 ```
