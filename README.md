@@ -46,11 +46,6 @@
 
 ## 部署
 
-### 環境變數
-```
-DISCORD_TOKEN=你的 Bot Token
-```
-
 ### 本地執行
 ```bash
 pip install -r requirements.txt
